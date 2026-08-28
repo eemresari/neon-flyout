@@ -72,6 +72,11 @@ Hiçbiri klavye dinlemeyi gerektirmiyor. Bu bir kolaylık değil, tasarımın me
 Bu dört kural olmadan kutu kendi kendine açılıp durur ve Windows'unkinden beter olur.
 **Dördü de P2'de yazılmalı**, sonraya bırakılırsa alışkanlık haline gelir.
 
+> **P1 ölçümü bu kuralları düzeltti** — yazmadan önce `docs/P1-SONUC.md` § 6 ve § 8'i
+> oku. Özet: 3. kuraldaki 150 ms penceresi *kutuyu açma* kararını yönetmez (başlık
+> olaydan 270 ms sonra geliyor), ve `CurrentSessionChanged` tek başına tetik değildir
+> (yeni oturum boş doğuyor).
+
 1. **İlk olayı yut.** Abone olunduğu anda mevcut durum bir olay olarak gelir; yoksa
    uygulama her açılışta kendini gösterir.
 2. **Değişmeyeni yut.** Aynı `PlaybackStatus` + aynı parça için tekrar gelen olayı at.

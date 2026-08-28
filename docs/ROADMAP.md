@@ -44,7 +44,27 @@ Windows'ta çalışıyor mu?
 
 ---
 
-## P1 — SMTC spike
+## P1 — SMTC spike ✅ TAMAMLANDI (2026-08-28) — GEÇTİ
+
+**Çıkış kriteri sağlandı:** Spotify ↔ Opera GX ve Spotify ↔ Edge geçişlerinde doğru
+metadata aktı. Capability sorunu **yok**. Düzenek: `spikes/p1-smtc`, sonuçlar ve olay
+akışının ham şekli: **`docs/P1-SONUC.md`**.
+
+P2'yi doğrudan değiştiren üç bulgu:
+
+- **Yeni oturum boş doğuyor.** `CurrentSessionChanged` geldiğinde başlık boş, durum
+  `Opened`; içerik 14 ms sonra `MediaPropertiesChanged` ile geliyor. Bu olay tek
+  başına kutuyu **açmamalı**.
+- **150 ms birleştirme penceresi yetersiz.** Tek parça geçişi 811 ms'ye yayılan 8 olay
+  üretiyor, başlık 270. ms'de geliyor. Pencere "kutuyu aç" kararını değil,
+  "animasyonu baştan oynatma" kararını yönetmeli.
+- **Olaylar eşzamanlı thread'lerde geliyor.** Adapter durum tutmamalı; olay domain
+  tipine çevrilip mpsc'ye yazılmalı.
+
+**Bu aşamayı tekrar çalıştırma; P2'den devam et.**
+
+<details>
+<summary>Özgün P1 planı</summary>
 
 Tauri yok, UI yok. Sadece bir Rust konsol uygulaması.
 
@@ -55,6 +75,8 @@ Tauri yok, UI yok. Sadece bir Rust konsol uygulaması.
 
 **Çıkış:** Spotify ↔ tarayıcı sekmesi geçişinde doğru metadata akıyor.
 
+</details>
+
 ---
 
 ## P2 — Tetik + zamanlayıcı
@@ -63,7 +85,8 @@ Artık gerçek uygulama. İçerik hâlâ çirkin olabilir.
 
 - Dört tetikleyiciyi bağla (`docs/ARCHITECTURE.md` → Tetikleyiciler)
 - Gürültü kurallarının **dördünü de** yaz: ilk-olay yutma, no-op yutma,
-  150 ms birleştirme, ön plan kuralı
+  birleştirme, ön plan kuralı — **kuralların P1 ölçümüyle düzeltilmiş hâli için
+  `docs/P1-SONUC.md` § 8**
 - Tek deadline zamanlayıcısı + görünürlük durum makinesi
 - Pencere gerçekten belirip kayboluyor, `SW_HIDE` ile
 

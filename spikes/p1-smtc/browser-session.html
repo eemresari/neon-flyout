@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>P1 — tarayıcı SMTC oturumu</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; background:#111; color:#eee;
+         max-width: 46rem; margin: 3rem auto; padding: 0 1.5rem; }
+  h1 { font-size: 1.25rem; }
+  button { font: inherit; padding: .6rem 1rem; margin: .25rem .25rem .25rem 0;
+           background:#222; color:#eee; border:1px solid #444; border-radius:6px; cursor:pointer; }
+  button:hover { background:#2c2c2c; }
+  #now { margin-top: 1rem; padding: .75rem; background:#1a1a1a; border-left:3px solid #4af; }
+  p.note { color:#999; font-size: .9rem; }
+</style>
+</head>
+<body>
+<h1>P1 — tarayıcı tarafı SMTC oturumu</h1>
+<p class="note">
+  Bu sayfa <code>navigator.mediaSession</code> ile Windows'un medya oturum listesine
+  ikinci bir kaynak olarak kaydolur. Amaç <code>p1-smtc.exe</code>'nin
+  <code>CurrentSessionChanged</code> ve metadata akışını Spotify ↔ tarayıcı geçişinde
+  doğrulaması. Ses bilerek çok kısık bir 220 Hz tondur.
+</p>
+
+<p>
+  <button id="play">▶ Çal (oturumu kaydet)</button>
+  <button id="pause">⏸ Duraklat</button>
+  <button id="t1">Metadata: Parça A</button>
+  <button id="t2">Metadata: Parça B</button>
+</p>
+
+<div id="now">durum: —</div>
+
+<script>
+const TRACKS = [
+  { title: "Test Parcasi A", artist: "Tarayici Oturumu", album: "P1 Spike" },
+  { title: "Test Parcasi B", artist: "Baska Sanatci",    album: "P1 Spike" },
+];
+
+// Sessize yakın 220 Hz döngü — SMTC'ye kaydolmak için gerçekten ses çalması gerekiyor.
+// seconds >= 5 SART: Chromium yalnizca >=5 sn suren medyayi Windows'un
+// global medya denetimlerine (SMTC) veriyor. 2 sn ile oturum hic gorunmedi.
+function toneWavUrl(freq = 220, seconds = 30, rate = 44100) {
+  const n = rate * seconds, bytes = 44 + n * 2;
+  const buf = new ArrayBuffer(bytes), view = new DataView(buf);
+  const str = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+  str(0, "RIFF"); view.setUint32(4, bytes - 8, true); str(8, "WAVEfmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  str(36, "data"); view.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) {
+    view.setInt16(44 + i * 2, Math.sin(2 * Math.PI * freq * i / rate) * 1200, true);
+  }
+  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+}
+
+const audio = new Audio(toneWavUrl());
+audio.loop = true;
+audio.volume = 0.04;
+
+const now = document.getElementById("now");
+function setMeta(i) {
+  const t = TRACKS[i];
+  if ("mediaSession" in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: t.title, artist: t.artist, album: t.album,
+    });
+  }
+  now.textContent = `metadata: ${t.title} — ${t.artist}`;
+}
+
+document.getElementById("play").onclick = async () => {
+  await audio.play();
+  setMeta(0);
+  if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
+  now.textContent = "durum: calıyor — p1-smtc.exe'de CurrentSessionChanged gormelisin";
+};
+document.getElementById("pause").onclick = () => {
+  audio.pause();
+  if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
+  now.textContent = "durum: duraklatildi";
+};
+document.getElementById("t1").onclick = () => setMeta(0);
+document.getElementById("t2").onclick = () => setMeta(1);
+
+if ("mediaSession" in navigator) {
+  navigator.mediaSession.setActionHandler("play",  () => document.getElementById("play").click());
+  navigator.mediaSession.setActionHandler("pause", () => document.getElementById("pause").click());
+}
+
+// ?auto=1 — betikle sürülen koşu için. Tarayıcı `--autoplay-policy=
+// no-user-gesture-required` ile açılmalı, yoksa play() reddedilir.
+if (new URLSearchParams(location.search).has("auto")) {
+  document.getElementById("play").click();
+  setTimeout(() => setMeta(1), 6000);
+}
+</script>
+</body>
+</html>

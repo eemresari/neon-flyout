@@ -11,12 +11,15 @@ Hedef makine: Windows 11 x64. Minimum: Windows 10 1809 (build 17763).
 
 ## İlk oturumda sırayla yapılacaklar
 
-1. Bu dosyayı ve `docs/` altındaki dosyaları oku — **`docs/P0-SONUC.md` dahil.**
+1. Bu dosyayı ve `docs/` altındaki dosyaları oku — **`P0-SONUC.md` ve `P1-SONUC.md`
+   dahil.**
 2. **P0 tamamlandı (2026-08-28): kapı geçildi, yığın Tauri v2 + Rust.** Tekrar ölçme.
-3. **`docs/ROADMAP.md` → P1'den (SMTC spike) başla**, sonra sırayla devam.
+3. **P1 tamamlandı (2026-08-28): SMTC okunuyor, oturum geçişi doğrulandı.** Tekrar
+   ölçme; olay akışının gerçek şekli `docs/P1-SONUC.md`'de.
+4. **`docs/ROADMAP.md` → P2'den (tetik + zamanlayıcı) başla**, sonra sırayla devam.
 
-`spikes/` altındaki iki proje P0'ın ölçüm düzeneğidir — **atılacak koddur**, uygulamanın
-iskeleti değil. Uygulama ayrıca kurulacak.
+`spikes/` altındaki üç proje P0 ve P1'in ölçüm düzeneğidir — **atılacak koddur**,
+uygulamanın iskeleti değil. Uygulama ayrıca kurulacak.
 
 Tasarım hazır ve `design/` altında gerçek CSS olarak duruyor — yeniden tasarlama,
 oradan al.
@@ -83,9 +86,7 @@ Bunlar bilerek açık bırakıldı. Herhangi birini "muhtemelen şöyledir" diye
    sürüme değişiyor (`XamlExplorerHostIslandWindow`, `NativeHWNDHost` isimleri geçiyor
    ama hangisinin doğru olduğu doğrulanmadı). Kaynak: FluentFlyout ve ModernFlyouts
    depolarındaki güncel handler kodu.
-2. **`globalMediaControl` capability'si** paketlenmemiş bir Win32 exe'de gerekiyor mu?
-   Muhtemelen hayır, ama test edilmedi. Sadece MSIX paketlersen sorun olur.
-3. **WebView2 gizliyken render'ı durdurulunca uyanma bedeli ne olur?** P0'da ölçülen
+2. **WebView2 gizliyken render'ı durdurulunca uyanma bedeli ne olur?** P0'da ölçülen
    11 ms, render döngüsü **sıcakken** alındı — `SW_HIDE` WebView2'yi durdurmuyor (bkz.
    aşağıdaki bulgu). `IsVisible=false` / `TrySuspend` uygulandığında gerçek uyanma bedeli
    ortaya çıkacak ve **ölçüm tekrarlanmalı.**
@@ -98,6 +99,19 @@ Bunlar bilerek açık bırakıldı. Herhangi birini "muhtemelen şöyledir" diye
 - ~~Şeffaf Tauri penceresinde `backdrop-filter` çalışıyor mu?~~ **Hayır**, şeffaf bölgede
   hiçbir şey yapmıyor (CSS "backdrop"ı sayfanın kendi zemini; masaüstü buna dahil değil).
   Tasarımlar blur'a bağımlı olmadığı için etkisi yok.
+
+## P1'de cevaplanan varsayımlar
+
+- ~~`globalMediaControl` capability'si paketlenmemiş bir Win32 exe'de gerekiyor mu?~~
+  **Hayır.** Manifest yok, bildirim yok, UAC yok; `RequestAsync` soğukta 30 ms,
+  sıcakta 10 ms. Sadece P5'te MSIX paketlenirse konu geri gelir.
+
+**Yan bulgu — P2'yi doğrudan değiştiriyor:** yeni bir SMTC oturumu **boş doğuyor**
+(`CurrentSessionChanged` anında başlık boş, durum `Opened`; içerik 14 ms sonra
+geliyor) ve tek bir parça geçişi **811 ms'ye yayılan 8 olay** üretiyor. Dolayısıyla
+`CurrentSessionChanged` tek başına kutuyu açmamalı, 150 ms'lik birleştirme penceresi
+de "kutuyu aç" kararını değil "animasyonu baştan oynatma" kararını yönetmeli.
+Ayrıntı ve diğer altı madde: `docs/P1-SONUC.md` § 8.
 
 **Yan bulgu — mimariyi ilgilendiriyor:** `SW_HIDE` pencereyi Win32/DWM'den gizliyor ama
 **WebView2'nin render döngüsünü durdurmuyor** — gizliyken de saniyede 185 kare üretiyor
@@ -123,8 +137,10 @@ docs/ARCHITECTURE.md      katmanlar, adapter'lar, API haritası, gecikme bütçe
 docs/ROADMAP.md           P0–P5, her birinin çıkış kriteri
 docs/DESIGN.md            DOM sözleşmesi, tema sistemi, token tablosu
 docs/P0-SONUC.md          gecikme kapısı ölçümü, yöntem ve karar
+docs/P1-SONUC.md          SMTC ölçümü: olay akışının gerçek şekli, P2'ye devredilenler
 spikes/p0-tauri           P0 ölçüm düzeneği — Tauri (atılacak kod)
 spikes/p0-wpf             P0 ölçüm düzeneği — WPF karşılaştırması (atılacak kod)
+spikes/p1-smtc            P1 ölçüm düzeneği — SMTC konsol aracı (atılacak kod)
 spikes/analyze.py         measurements/*.csv → p50/p95 tablosu
 design/flyout.css         tema-bağımsız iskelet — kutu, ızgara, ölçüler
 design/themes/cyber.css   cyber teması: token'lar + yapısal override'lar

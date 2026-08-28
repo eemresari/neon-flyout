@@ -1,0 +1,17 @@
+[package]
+name = "p1-smtc"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+windows = { version = "0.61", features = [
+  "Foundation",
+  "Media",
+  "Media_Control",
+  "Storage_Streams",
+  "Win32_System_Com",
+] }
+
+[profile.release]
+debug = false
