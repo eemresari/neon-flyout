@@ -1,0 +1,274 @@
+/* ==========================================================================
+   flyout.css — tema-bağımsız iskelet
+   Burada renk YOK. Sadece yapı, ölçü ve davranış.
+   Bütün görsel değerler themes/*.css içindeki custom property'lerden gelir.
+   ========================================================================== */
+
+.fly {
+  position: relative;
+  box-sizing: border-box;
+  width: 400px;
+  padding: var(--border-w);
+  clip-path: var(--frame-clip);
+  background: var(--frame-bg);
+  filter: var(--frame-glow);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+
+  /* giriş / çıkış — JS sadece .is-visible ekler/çıkarır */
+  opacity: 0;
+  transform: translateX(10px);
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
+}
+
+.fly.is-visible { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fly { transition: none; transform: none; }
+}
+
+.fly--media  { height: 120px; }
+.fly--volume { height: 84px; }
+
+.fly__plate {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  clip-path: var(--plate-clip);
+  background: var(--plate-bg);
+  display: grid;
+  align-items: center;
+  gap: var(--gap);
+  padding: var(--pad);
+}
+
+/* Yerleşim tamamen temadan gelir — DOM sırası hiç değişmez.
+   cyber:  "art  body meter"
+   neon:   "ring body art"     (aynalanmış)                                  */
+.fly--media .fly__plate {
+  grid-template-columns: var(--media-cols);
+  grid-template-areas: var(--media-areas);
+}
+
+.fly--volume .fly__plate {
+  grid-template-columns: var(--volume-cols);
+  grid-template-areas: "icon body num";
+}
+
+.fly__art  { grid-area: art; }
+.fly__ring { grid-area: ring; }
+.fly__body { grid-area: body; }
+.fly__meter{ grid-area: meter; }
+.fly__icon { grid-area: icon; }
+.fly__num  { grid-area: num; }
+
+/* Her eleman her zaman DOM'da durur; tema kullanmadığını açar/kapatır.
+   Böylece tema değiştirmek tek attribute yazmaktan ibaret kalır.          */
+.fly__ring,
+.fly__meter,
+.fly__spectrum,
+.fly__progress { display: none; }
+
+/* --------------------------------------------------------------- kapak -- */
+
+.fly__art {
+  position: relative;
+  overflow: hidden;
+  width: var(--art-size);
+  height: var(--art-size);
+  clip-path: var(--art-clip);
+  background: var(--art-fallback);
+}
+
+.fly__art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* ---------------------------------------------------------------- metin -- */
+
+.fly__body { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.fly--volume .fly__body { gap: 7px; }
+
+.fly__head { display: flex; align-items: center; gap: 7px; }
+
+.fly__dot {
+  width: 4px; height: 4px;
+  background: var(--dot-bg);
+  box-shadow: var(--dot-glow);
+}
+
+.fly__state {
+  font-size: 8.5px;
+  letter-spacing: .19em;
+  text-transform: uppercase;
+  font-weight: var(--label-weight);
+  color: var(--state-color);
+}
+
+.fly__source {
+  font-size: 8px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--source-color);
+  padding: 1px 5px;
+  border: 1px solid var(--source-border);
+  clip-path: var(--chip-clip);
+}
+
+.fly__title {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  font-size: var(--title-size);
+  line-height: 1.08;
+  letter-spacing: .014em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fly__artist {
+  font-size: 9.3px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------- ilerleme (yatay çubuk) -- */
+/* --progress: 0–100, JS inline style ile yazar                             */
+
+.fly__progress { align-items: center; gap: 9px; margin-top: 3px; }
+
+.fly__time {
+  font-size: 8.5px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.fly__track {
+  position: relative;
+  flex: 1;
+  height: 5px;
+  background: var(--track-bg);
+}
+
+.fly__fill {
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: calc(var(--progress, 0) * 1%);
+  background: var(--fill-bg);
+  box-shadow: var(--fill-glow);
+}
+
+.fly__tip {
+  position: absolute;
+  top: -3px;
+  left: calc(var(--progress, 0) * 1%);
+  width: 0; height: 0;
+  border-left: 5px solid var(--accent);
+  border-top: 5.5px solid transparent;
+  border-bottom: 5.5px solid transparent;
+}
+
+/* -------------------------------------------------- ilerleme (halka) ----- */
+
+.fly__ring {
+  position: relative;
+  width: 54px; height: 54px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from -90deg,
+    var(--accent-2) 0deg,
+    var(--accent) calc(var(--progress, 0) * 3.6deg),
+    var(--ring-track) calc(var(--progress, 0) * 3.6deg) 360deg
+  );
+  box-shadow: var(--ring-glow);
+}
+
+.fly__ring::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--ring-hole);
+}
+
+.fly__glyph {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fly__pct {
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  z-index: 1;
+  text-align: center;
+  font-size: 8px;
+  color: var(--ink-faint);
+}
+
+/* ------------------------------------------- seviye (dikey segment metre) -- */
+/* WASAPI IAudioMeterInformation::GetPeakValue çıktısı                       */
+
+.fly__meter {
+  flex-direction: column-reverse;
+  gap: 2px;
+  height: 90px;
+  justify-content: flex-start;
+}
+
+.fly__meter > i { width: 15px; height: 3px; background: var(--seg-off); }
+.fly__meter > i.is-on  { background: var(--seg-on);  box-shadow: var(--seg-glow); }
+.fly__meter > i.is-hot { background: var(--spark);   box-shadow: var(--spark-glow); }
+
+/* ------------------------------------------------ seviye (yatay spektrum) -- */
+/* --h: 0–100 per bar                                                        */
+
+.fly__spectrum { align-items: flex-end; gap: 2px; height: 17px; margin-top: 2px; }
+
+.fly__spectrum > i {
+  flex: 1;
+  min-width: 2px;
+  height: calc(var(--h, 0) * 0.17px);
+  background: var(--bar-bg);
+}
+
+.fly__spectrum > i.is-peak { background: var(--bar-peak); box-shadow: var(--bar-peak-glow); }
+
+/* ------------------------------------------------------------ ses kutusu -- */
+/* 24 tick. JS: on = round(level / 100 * 24), son üçü .is-hi                 */
+
+.fly__ticks { display: flex; gap: 2px; height: var(--tick-h); }
+
+.fly__ticks > i { flex: 1; background: var(--tick-off); clip-path: var(--tick-clip); }
+.fly__ticks > i.is-on { background: var(--tick-on); box-shadow: var(--tick-glow); }
+.fly__ticks > i.is-hi { background: var(--tick-hi); box-shadow: var(--tick-hi-glow); }
+
+.fly__num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--num-size);
+  line-height: 1;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+  min-width: 54px;
+  text-align: right;
+  color: var(--num-color);
+}
+
+.fly__num sup {
+  font-size: .36em;
+  font-weight: 500;
+  vertical-align: top;
+  opacity: .5;
+  margin-left: 1px;
+}
+
+.fly__icon { display: flex; align-items: center; justify-content: center; }

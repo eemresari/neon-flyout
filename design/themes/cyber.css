@@ -1,0 +1,170 @@
+/* ==========================================================================
+   cyber — keskin diyagonal kesik köşe, tek hue + durum rengi, 1px çizgi
+   Marka adları: cyber-turkuaz (#4FE9F7), cyber-sarı (#F0B03D)
+
+   Not: alfa'lı türevler bilerek literal rgba() olarak yazıldı.
+   `rgb(from var(--x) …)` göreli renk sözdizimi eski WebView2'de sessizce
+   düşer — sessiz başarısızlık bu projede kabul edilmiyor.
+   ========================================================================== */
+
+.fly[data-theme="cyber"] {
+  --accent:      #4FE9F7;
+  --accent-2:    #2AA9BC;
+  --alert:       #F7C158;
+  --alert-2:     #C08A28;
+  --spark:       #F0B03D;
+
+  --plate:       #071016;
+  --plate-2:     #04090C;
+  --ink:         #E8F8FB;
+  --ink-dim:     #7DA3AE;
+  --ink-faint:   #55818C;
+
+  --font-display: "Chakra Petch", "Segoe UI Semibold", system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "Cascadia Mono", monospace;
+  --display-weight: 600;
+  --label-weight: 500;
+  --title-size: 17px;
+  --num-size: 30px;
+
+  /* ---- yapı ---- */
+  --border-w: 1px;
+  --gap: 13px;
+  --pad: 13px 15px;
+  --media-cols: 90px 1fr 15px;
+  --media-areas: "art body meter";
+  --volume-cols: 30px 1fr auto;
+  --art-size: 90px;
+  --tick-h: 10px;
+
+  --frame-clip: polygon(
+    13px 0, 36% 0, 38% 7px, 62% 7px, 64% 0, 100% 0,
+    100% calc(100% - 13px), calc(100% - 13px) 100%, 0 100%, 0 13px);
+  --plate-clip: polygon(
+    12px 0, 36% 0, 38% 6px, 62% 6px, 64% 0, 100% 0,
+    100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  --art-clip: polygon(0 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%);
+  --chip-clip: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
+  --tick-clip: none;
+
+  /* ---- boyanmış değerler ---- */
+  --frame-bg:   linear-gradient(140deg, #4FE9F7 0%, #2AA9BC 45%, #175C68 100%);
+  --frame-glow: drop-shadow(0 0 8px rgba(79, 233, 247, .42)) drop-shadow(0 3px 14px rgba(0, 0, 0, .5));
+  --plate-bg:   linear-gradient(160deg, #071016 0%, #04090C 100%);
+  --art-fallback: radial-gradient(130% 100% at 18% 8%, #1A4E5E 0%, #0C2731 52%, #050E12 100%);
+
+  --state-color:   #4FE9F7;
+  --source-color:  #56828D;
+  --source-border: rgba(79, 233, 247, .22);
+  --dot-bg:        #F0B03D;
+  --dot-glow:      0 0 6px rgba(240, 176, 61, .9);
+
+  --track-bg:  repeating-linear-gradient(90deg, rgba(79, 233, 247, .17) 0 2px, transparent 2px 5px);
+  --fill-bg:   linear-gradient(90deg, #2AA9BC 0%, #4FE9F7 100%);
+  --fill-glow: 0 0 7px rgba(79, 233, 247, .85);
+
+  --seg-off:    rgba(79, 233, 247, .12);
+  --seg-on:     #3DE1F0;
+  --seg-glow:   0 0 5px rgba(61, 225, 240, .6);
+  --spark-glow: 0 0 5px rgba(240, 176, 61, .6);
+
+  --tick-off:     rgba(79, 233, 247, .12);
+  --tick-on:      linear-gradient(180deg, #6FF0FB 0%, #2AA9BC 100%);
+  --tick-glow:    0 0 6px rgba(79, 233, 247, .55);
+  --tick-hi:      linear-gradient(180deg, #6FF0FB 0%, #2AA9BC 100%);
+  --tick-hi-glow: 0 0 6px rgba(79, 233, 247, .55);
+
+  --num-color: #E8F8FB;
+
+  /* cyber halka ve spektrum kullanmaz — bunlar tanımsız kalmasın diye */
+  --ring-track: transparent;
+  --ring-hole:  #071016;
+  --ring-glow:  none;
+  --bar-bg:     #4FE9F7;
+  --bar-peak:   #F0B03D;
+  --bar-peak-glow: none;
+}
+
+/* cyber: yatay çubuk + dikey metre */
+.fly[data-theme="cyber"] .fly__progress { display: flex; }
+.fly[data-theme="cyber"] .fly__meter    { display: flex; }
+
+/* köşe braketleri — sıfır görsel varlık, saf CSS */
+.fly[data-theme="cyber"] .fly__plate::before,
+.fly[data-theme="cyber"] .fly__plate::after {
+  content: "";
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  pointer-events: none;
+}
+
+.fly[data-theme="cyber"] .fly__plate::before {
+  right: 5px; top: 5px;
+  border-right: 2px solid rgba(79, 233, 247, .75);
+  border-top:   2px solid rgba(79, 233, 247, .75);
+}
+
+.fly[data-theme="cyber"] .fly__plate::after {
+  left: 5px; bottom: 5px;
+  border-left:   2px solid rgba(79, 233, 247, .75);
+  border-bottom: 2px solid rgba(79, 233, 247, .75);
+}
+
+/* tarama şeridi */
+.fly[data-theme="cyber"] .fly__deco {
+  position: absolute;
+  left: 15px; bottom: 4px;
+  width: 46px; height: 4px;
+  pointer-events: none;
+  background: repeating-linear-gradient(115deg, rgba(79, 233, 247, .5) 0 1.5px, transparent 1.5px 5px);
+}
+
+/* ---- durum override'ları: tek yerde, token seviyesinde ---- */
+
+.fly[data-theme="cyber"][data-state="paused"],
+.fly[data-theme="cyber"][data-state="mute"] {
+  --plate-bg:   linear-gradient(160deg, #12100A 0%, #080704 100%);
+  --frame-bg:   linear-gradient(140deg, #F7C158 0%, #C08A28 45%, #6B4C13 100%);
+  --frame-glow: drop-shadow(0 0 8px rgba(240, 176, 61, .36)) drop-shadow(0 3px 14px rgba(0, 0, 0, .5));
+  --art-fallback: radial-gradient(130% 100% at 18% 8%, #2A2312 0%, #17140A 52%, #0A0905 100%);
+
+  --ink:        #F3EEE0;
+  --ink-dim:    #A2916C;
+  --ink-faint:  #857042;
+  --state-color:   #F7C158;
+  --source-color:  #8A7442;
+  --source-border: rgba(240, 176, 61, .22);
+  --dot-bg:     #F7C158;
+  --dot-glow:   0 0 6px rgba(240, 176, 61, .9);
+
+  --track-bg:  repeating-linear-gradient(90deg, rgba(240, 176, 61, .16) 0 2px, transparent 2px 5px);
+  --fill-bg:   linear-gradient(90deg, #7E5D1D 0%, #C08A28 100%);
+  --fill-glow: none;
+  --accent:    #F0B03D;
+
+  --seg-off:   rgba(240, 176, 61, .1);
+  --seg-on:    rgba(240, 176, 61, .5);
+  --seg-glow:  none;
+
+  --tick-off:  rgba(240, 176, 61, .1);
+  --num-color: #6E6248;
+  --ring-hole: #12100A;
+}
+
+.fly[data-theme="cyber"][data-state="paused"] .fly__plate::before,
+.fly[data-theme="cyber"][data-state="mute"]   .fly__plate::before {
+  border-right-color: rgba(247, 193, 88, .7);
+  border-top-color:   rgba(247, 193, 88, .7);
+}
+
+.fly[data-theme="cyber"][data-state="paused"] .fly__plate::after,
+.fly[data-theme="cyber"][data-state="mute"]   .fly__plate::after {
+  border-left-color:   rgba(247, 193, 88, .7);
+  border-bottom-color: rgba(247, 193, 88, .7);
+}
+
+.fly[data-theme="cyber"][data-state="paused"] .fly__deco,
+.fly[data-theme="cyber"][data-state="mute"]   .fly__deco {
+  background: repeating-linear-gradient(115deg, rgba(240, 176, 61, .45) 0 1.5px, transparent 1.5px 5px);
+}

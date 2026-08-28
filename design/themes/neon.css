@@ -1,0 +1,163 @@
+/* ==========================================================================
+   neon — basamaklı (dik açılı) köşe, çok hue, halka gösterge, 2px çizgi
+   Marka adları: neon-yeşil (#34E27A), neon-turkuaz (#2FD8F5),
+                 neon-magenta (#E93DBE), neon-mor (#A85CF5), neon-sarı (#F5D43D)
+
+   Cyber'ın renk değişmiş hali DEĞİL: kompozisyon aynalanmış (halka solda,
+   kapak sağda), ilerleme halka, seviye yatay spektrum.
+   ========================================================================== */
+
+.fly[data-theme="neon"] {
+  --accent:      #34E27A;
+  --accent-2:    #2FD8F5;
+  --alert:       #E93DBE;
+  --alert-2:     #A85CF5;
+  --spark:       #F5D43D;
+
+  --plate:       #101B31;
+  --plate-2:     #0A1120;
+  --ink:         #EAF2FF;
+  --ink-dim:     #8E7BD6;
+  --ink-faint:   #4E6A93;
+
+  --font-display: "Rajdhani", "Segoe UI Semibold", system-ui, sans-serif;
+  --font-mono:    "Space Mono", ui-monospace, "Cascadia Mono", monospace;
+  --display-weight: 700;
+  --label-weight: 700;
+  --title-size: 21px;
+  --num-size: 34px;
+
+  /* ---- yapı ---- */
+  --border-w: 2px;
+  --gap: 12px;
+  --pad: 13px 14px;
+  --media-cols: 54px 1fr 80px;
+  --media-areas: "ring body art";
+  --volume-cols: 54px 1fr auto;
+  --art-size: 80px;
+  --tick-h: 11px;
+
+  --frame-clip: polygon(
+    0 13px, 13px 13px, 13px 0,
+    calc(100% - 46px) 0, calc(100% - 46px) 6px, calc(100% - 16px) 6px, calc(100% - 16px) 0,
+    100% 0, 100% calc(100% - 13px),
+    calc(100% - 13px) calc(100% - 13px), calc(100% - 13px) 100%, 0 100%);
+  --plate-clip: polygon(
+    0 11px, 11px 11px, 11px 0,
+    calc(100% - 46px) 0, calc(100% - 46px) 4px, calc(100% - 16px) 4px, calc(100% - 16px) 0,
+    100% 0, 100% calc(100% - 11px),
+    calc(100% - 11px) calc(100% - 11px), calc(100% - 11px) 100%, 0 100%);
+  --art-clip: polygon(
+    0 0, calc(100% - 16px) 0, calc(100% - 16px) 9px, 100% 9px,
+    100% 100%, 16px 100%, 16px calc(100% - 9px), 0 calc(100% - 9px));
+  --chip-clip: polygon(
+    0 4px, 4px 4px, 4px 0, 100% 0,
+    100% calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) 100%, 0 100%);
+  --tick-clip: polygon(0 0, 100% 0, 100% calc(100% - 3px), calc(100% - 2px) 100%, 0 100%);
+
+  /* ---- boyanmış değerler ---- */
+  --frame-bg:   linear-gradient(122deg, #34E27A 0%, #2FD8F5 46%, #A85CF5 100%);
+  --frame-glow: drop-shadow(0 0 9px rgba(52, 226, 122, .4)) drop-shadow(0 3px 14px rgba(0, 0, 0, .55));
+  --plate-bg:
+    linear-gradient(rgba(120, 160, 255, .05) 1px, transparent 1px) 0 0 / 14px 14px,
+    linear-gradient(90deg, rgba(120, 160, 255, .05) 1px, transparent 1px) 0 0 / 14px 14px,
+    linear-gradient(155deg, #101B31 0%, #0A1120 100%);
+  --art-fallback: radial-gradient(130% 100% at 76% 12%, #1E4A6E 0%, #16264A 50%, #0C1424 100%);
+
+  --state-color:   #34E27A;
+  --source-color:  #2FD8F5;
+  --source-border: rgba(47, 216, 245, .35);
+  --dot-bg:        #F5D43D;
+  --dot-glow:      0 0 6px rgba(245, 212, 61, .9);
+
+  --ring-track: rgba(47, 216, 245, .14);
+  --ring-hole:  #0B1220;
+  --ring-glow:  0 0 14px rgba(52, 226, 122, .32);
+
+  --bar-bg:        linear-gradient(180deg, #34E27A 0%, #2FD8F5 100%);
+  --bar-peak:      linear-gradient(180deg, #E93DBE 0%, #A85CF5 100%);
+  --bar-peak-glow: 0 0 6px rgba(233, 61, 190, .6);
+
+  --tick-off:     rgba(47, 216, 245, .14);
+  --tick-on:      linear-gradient(180deg, #34E27A 0%, #2FD8F5 100%);
+  --tick-glow:    0 0 7px rgba(52, 226, 122, .45);
+  --tick-hi:      linear-gradient(180deg, #F5D43D 0%, #E9A93D 100%);
+  --tick-hi-glow: 0 0 7px rgba(245, 212, 61, .5);
+
+  --num-color: #EAF2FF;
+
+  /* neon yatay çubuk ve dikey metre kullanmaz — tanımsız kalmasın diye */
+  --track-bg:  transparent;
+  --fill-bg:   #34E27A;
+  --fill-glow: none;
+  --seg-off:   transparent;
+  --seg-on:    #34E27A;
+  --seg-glow:  none;
+  --spark-glow: none;
+}
+
+/* neon: halka + yatay spektrum */
+.fly[data-theme="neon"] .fly__ring     { display: block; }
+.fly[data-theme="neon"] .fly__spectrum { display: flex; }
+
+/* sağ kenardaki tek sarı vurgu — kapağın üstünde */
+.fly[data-theme="neon"] .fly__deco {
+  position: absolute;
+  right: 14px; top: 22px;
+  width: 3px; height: 26px;
+  pointer-events: none;
+  background: #F5D43D;
+  box-shadow: 0 0 8px rgba(245, 212, 61, .8);
+}
+
+.fly[data-theme="neon"].fly--volume .fly__deco { display: none; }
+
+/* ---- durum override'ları ---- */
+
+.fly[data-theme="neon"][data-state="paused"],
+.fly[data-theme="neon"][data-state="mute"] {
+  --accent:    #E93DBE;
+  --accent-2:  #A85CF5;
+
+  --frame-bg:   linear-gradient(122deg, #E93DBE 0%, #A85CF5 52%, #4A3A9E 100%);
+  --frame-glow: drop-shadow(0 0 9px rgba(233, 61, 190, .36)) drop-shadow(0 3px 14px rgba(0, 0, 0, .55));
+  --plate-bg:
+    linear-gradient(rgba(180, 140, 255, .05) 1px, transparent 1px) 0 0 / 14px 14px,
+    linear-gradient(90deg, rgba(180, 140, 255, .05) 1px, transparent 1px) 0 0 / 14px 14px,
+    linear-gradient(155deg, #1A1230 0%, #100A1E 100%);
+  --art-fallback: radial-gradient(130% 100% at 76% 12%, #3A2258 0%, #241640 50%, #140C24 100%);
+
+  --ink:       #EDE4FA;
+  --ink-dim:   #8B6FB8;
+  --ink-faint: #7A5C99;
+  --state-color:   #F06BD0;
+  --source-color:  #9B78C9;
+  --source-border: rgba(168, 92, 245, .35);
+  --dot-bg:    #E93DBE;
+  --dot-glow:  0 0 6px rgba(233, 61, 190, .9);
+
+  --ring-track: rgba(168, 92, 245, .14);
+  --ring-hole:  #110B1F;
+  --ring-glow:  0 0 12px rgba(233, 61, 190, .26);
+
+  --bar-bg:        rgba(168, 92, 245, .32);
+  --bar-peak:      rgba(168, 92, 245, .32);
+  --bar-peak-glow: none;
+
+  --tick-off:  rgba(168, 92, 245, .12);
+  --num-color: #6B5A8C;
+}
+
+/* duraklatıldığında spektrum düz bir çizgiye iner —
+   JS'in --h değerlerini sıfırlamasına gerek yok */
+.fly[data-theme="neon"][data-state="paused"] .fly__spectrum > i,
+.fly[data-theme="neon"][data-state="mute"]   .fly__spectrum > i { height: 2px; }
+
+.fly[data-theme="neon"][data-state="paused"] .fly__deco,
+.fly[data-theme="neon"][data-state="mute"]   .fly__deco {
+  background: #A85CF5;
+  box-shadow: 0 0 8px rgba(168, 92, 245, .7);
+}
+
+/* sessizde halka tamamen boşalır */
+.fly[data-theme="neon"][data-state="mute"] .fly__ring { --progress: 0; }

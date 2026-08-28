@@ -1,0 +1,30 @@
+# Rust / Tauri
+/target
+/src-tauri/target
+**/target/
+Cargo.lock.bak
+
+# .NET (WPF spike)
+**/bin/
+**/obj/
+
+# Node
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Windows
+Thumbs.db
+desktop.ini
+*.pdb
+
+# Editör
+.vscode/
+.idea/
+*.swp
+
+# Yerel
+.env
+.env.local
+/measurements/*.csv
