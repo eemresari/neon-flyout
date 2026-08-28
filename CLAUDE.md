@@ -138,6 +138,44 @@ uydurma, yuvarlama, "4px grid'e oturtma" yapma.
 
 ---
 
+## Ortam — bu makinede zaten kurulu, yeniden keşfetme
+
+| | |
+|---|---|
+| Rust | 1.98.0, `stable-x86_64-pc-windows-msvc` |
+| MSVC | VS 2022 Build Tools (VCTools) + Windows SDK 10.0.26100 |
+| .NET | SDK 8.0.424 |
+| Node / npm | v24.19 / 11.17 |
+| WebView2 Runtime | 151.0.4129.107 |
+| Makine | Ryzen 5 7600X · RTX 5070 · 2560×1440 **@184 Hz** · Win11 build 26200 |
+
+**PATH tuzağı:** Claude Code'un kabuğu kurulum sırasındaki PATH'i miras alıyor;
+`cargo`/`dotnet` "bulunamadı" derse komutun başına şunu koy:
+
+```powershell
+$env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")
+```
+
+### ⚠ Smart App Control — Rust derlemelerini engelliyor
+
+Bu makinede SAC **açık** (`VerifiedAndReputablePolicyState = 1`). İmzasız Rust
+ikililerini **hash başına, öngörülemez biçimde** engelliyor: aynı kaynaktan üretilen
+derlemelerin bir kısmı çalıştı, bir kısmı `Uygulama Denetimi ilkesi bu dosyayı
+engelledi` verdi. .NET etkilenmiyor (apphost bilinen şablon olduğu için geçiyor).
+
+Engellenirse: kaynakta önemsiz bir değişiklik yapıp yeniden derle — farklı hash bazen
+geçiyor. Kalıcı çözüm ikisinden biri, **ikisi de kullanıcı kararı**: SAC'ı kapatmak
+(*geri alınamaz* — tekrar açmak Windows'u sıfırlamayı gerektirir) veya derlemeleri
+güvenilen bir sertifikayla imzalamak. Karar verilmedi; kendi başına kapatma.
+
+### Depo
+
+`eemresari/neon-flyout` (public), `v1-kasa` deposuna **submodule** olarak bağlı.
+Push için her zaman kullanıcı onayı iste. `measurements/*.csv` ve build çıktıları
+`.gitignore`'da.
+
+---
+
 ## Çalışma tarzı
 
 - Emin olmadığın bir API davranışını tahmin etme. Küçük bir spike yaz, çalıştır, gör.
