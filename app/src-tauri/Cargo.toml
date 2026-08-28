@@ -1,0 +1,54 @@
+[package]
+name = "neon-flyout"
+version = "0.1.0"
+description = "Windows medya/ses flyout'u"
+edition = "2021"
+publish = false
+
+[lib]
+# `_lib` soneki Windows'ta bin adiyla catismayi onluyor (rust-lang/cargo#8519).
+name = "neon_flyout_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Windows API'leri YALNIZCA src/adapters/* icinde kullanilir (docs/ARCHITECTURE.md).
+[target.'cfg(windows)'.dependencies]
+# `#[implement]` makrosu urettigi kodda `windows_core::` yollarini kullaniyor;
+# crate dogrudan bagimlilik olarak bulunmali (windows 0.61.3 ile ayni surum).
+windows-core = "0.61"
+windows = { version = "0.61", features = [
+  "Foundation",
+  "Media",
+  "Media_Control",
+  "Win32_Devices_FunctionDiscovery",
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Media_Audio",
+  "Win32_Media_Audio_Endpoints",
+  "Win32_Storage_Packaging_Appx",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Threading",
+  "Win32_System_Variant",
+  "Win32_UI_Shell_PropertiesSystem",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+debug = false
+
+# SAC (Smart App Control) build script ikililerini hash basina engelleyebiliyor
+# (bkz. CLAUDE.md → "Smart App Control"). Build script'leri farkli bayraklarla
+# derlemek farkli bir hash uretiyor ve engeli asiyor; islevsel etkisi yok.
+[profile.dev.build-override]
+opt-level = 1
+
+[profile.release.build-override]
+opt-level = 1

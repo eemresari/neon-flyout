@@ -16,12 +16,18 @@ Hedef makine: Windows 11 x64. Minimum: Windows 10 1809 (build 17763).
 2. **P0 tamamlandı (2026-08-28): kapı geçildi, yığın Tauri v2 + Rust.** Tekrar ölçme.
 3. **P1 tamamlandı (2026-08-28): SMTC okunuyor, oturum geçişi doğrulandı.** Tekrar
    ölçme; olay akışının gerçek şekli `docs/P1-SONUC.md`'de.
-4. **`docs/ROADMAP.md` → P2'den (tetik + zamanlayıcı) başla**, sonra sırayla devam.
-   P2 bölümü P1 ölçümüne göre yeniden yazıldı ve adım adım (P2.0–P2.4) veriliyor;
-   ilk adım uygulama iskeletini kurmak — **henüz yok**, `app/` altında olacak.
+4. **P2 tamamlandı (2026-08-28): uygulama `app/` altında ayakta.** Katmanlar,
+   core → WebView sözleşmesi, kararlar ve tuzaklar `docs/P2-SONUC.md`'de —
+   **DOM yazmadan önce § 2'yi oku.**
+5. **`docs/ROADMAP.md` → P3'ten (arayüz) başla**, sonra sırayla devam. P3'ün ilk
+   işi P2'den devredilen iki manuel senaryoyu doğrulamak; tasarım ondan sonra.
 
 `spikes/` altındaki üç proje P0 ve P1'in ölçüm düzeneğidir — **atılacak koddur**,
-uygulamanın iskeleti değil. Uygulama ayrıca kurulacak.
+uygulamanın iskeleti değil. Uygulama `app/` altında ayrı duruyor.
+
+**Çalıştırma:** `cd app && npm run tauri dev`. `cargo run` tek başına çalışmaz —
+debug derlemesi `devUrl`'e gider, Vite ayakta değilse WebView "localhost bağlantıyı
+reddetti" gösterir. Testler: `cd app/src-tauri && cargo test`.
 
 Tasarım hazır ve `design/` altında gerçek CSS olarak duruyor — yeniden tasarlama,
 oradan al.
@@ -141,6 +147,10 @@ docs/ROADMAP.md           P0–P5, her birinin çıkış kriteri
 docs/DESIGN.md            DOM sözleşmesi, tema sistemi, token tablosu
 docs/P0-SONUC.md          gecikme kapısı ölçümü, yöntem ve karar
 docs/P1-SONUC.md          SMTC ölçümü: olay akışının gerçek şekli, P2'ye devredilenler
+docs/P2-SONUC.md          uygulama iskeleti, core→WebView sözleşmesi, tuzaklar
+app/                      UYGULAMA (P2'den itibaren) — vanilla+TS frontend, Tauri v2
+app/src-tauri/src/core/     Windows tipi bilmeyen, test edilebilir katman
+app/src-tauri/src/adapters/ SMTC, WASAPI, pencere — unsafe/COM yalnızca burada
 spikes/p0-tauri           P0 ölçüm düzeneği — Tauri (atılacak kod)
 spikes/p0-wpf             P0 ölçüm düzeneği — WPF karşılaştırması (atılacak kod)
 spikes/p1-smtc            P1 ölçüm düzeneği — SMTC konsol aracı (atılacak kod)
@@ -183,7 +193,12 @@ derlemelerin bir kısmı çalıştı, bir kısmı `Uygulama Denetimi ilkesi bu d
 engelledi` verdi. .NET etkilenmiyor (apphost bilinen şablon olduğu için geçiyor).
 
 Engellenirse: kaynakta önemsiz bir değişiklik yapıp yeniden derle — farklı hash bazen
-geçiyor. Kalıcı çözüm ikisinden biri, **ikisi de kullanıcı kararı**: SAC'ı kapatmak
+geçiyor. **Bağımlılığın build script'i engellenirse** kaynağa dokunmak hash'i
+değiştirmez; `app/src-tauri/Cargo.toml`'daki `[profile.*.build-override]` bloğu tam
+bunun için duruyor (build script'leri farklı bayrakla derleyip hash'i değiştiriyor),
+P2'de `icu_properties_data` böyle aşıldı.
+
+Kalıcı çözüm ikisinden biri, **ikisi de kullanıcı kararı**: SAC'ı kapatmak
 (*geri alınamaz* — tekrar açmak Windows'u sıfırlamayı gerektirir) veya derlemeleri
 güvenilen bir sertifikayla imzalamak. Karar verilmedi; kendi başına kapatma.
 

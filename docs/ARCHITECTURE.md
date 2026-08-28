@@ -70,7 +70,9 @@ Hiçbiri klavye dinlemeyi gerektirmiyor. Bu bir kolaylık değil, tasarımın me
 ### Durum dinlemenin bedeli: gürültü
 
 Bu dört kural olmadan kutu kendi kendine açılıp durur ve Windows'unkinden beter olur.
-**Dördü de P2'de yazılmalı**, sonraya bırakılırsa alışkanlık haline gelir.
+**Dördü de P2'de yazıldı** — `app/src-tauri/src/core/rules.rs`, birim testleriyle
+birlikte. 4. kural (ön plandakini atla) yazıldı ama **varsayılan kapalı**; gerekçe
+`docs/P2-SONUC.md` § 5'te.
 
 > **P1 ölçümü bu kuralları düzeltti** — yazmadan önce `docs/P1-SONUC.md` § 6 ve § 8'i
 > oku. Özet: 3. kuraldaki 150 ms penceresi *kutuyu açma* kararını yönetmez (başlık
@@ -91,6 +93,9 @@ Bu dört kural olmadan kutu kendi kendine açılıp durur ve Windows'unkinden be
 
 İki durum ve bir zaman damgası. Karmaşıklığı buraya sokma; flyout'ların bozuk
 hissetmesinin sebebi genelde üst üste binen zamanlayıcılardır.
+
+Uygulaması: `app/src-tauri/src/core/visibility.rs`. Ayrı zamanlayıcı thread'i yok —
+deadline'a kalan süre sürücü döngünün `recv_timeout` beklemesi olarak geçiyor.
 
 ```
 Hidden ──(dört tetikten biri)──► Visible   deadline = now + 2500 ms

@@ -1,0 +1,70 @@
+/* P2 yer tutucusu. Gerçek tasarım `design/flyout.css` + `design/themes/*.css`
+   dosyalarında hazır bekliyor ve P3'te bağlanacak — buradaki değerleri oraya
+   taşımayın, tersi geçerli. */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+.fly {
+  box-sizing: border-box;
+  width: 400px;
+  height: 120px;
+  padding: 14px 16px;
+  border: 1px solid #4fe9f7;
+  border-radius: 4px;
+  background: #071016;
+  color: #e8f8fb;
+  font-family: "Segoe UI", system-ui, sans-serif;
+
+  /* Giriş/çıkış animasyonu P3'ün işi; burada sadece fazın görünür olması yeterli.
+     Pencere `phase: leave` bittikten sonra gerçekten SW_HIDE ile gizleniyor. */
+  opacity: 1;
+  transition: opacity 150ms linear;
+}
+
+.fly[data-phase="leave"] {
+  opacity: 0;
+}
+
+.fly[data-kind="volume"] {
+  height: 84px;
+}
+
+.fly__head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7da3ae;
+}
+
+.fly[data-state="paused"] .fly__head,
+.fly[data-state="mute"] .fly__head {
+  color: #f0b03d;
+}
+
+.fly__title {
+  margin-top: 10px;
+  font-size: 20px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fly__sub {
+  margin-top: 2px;
+  font-size: 13px;
+  color: #7da3ae;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

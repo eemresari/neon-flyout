@@ -79,7 +79,27 @@ Tauri yok, UI yok. Sadece bir Rust konsol uygulaması.
 
 ---
 
-## P2 — Tetik + zamanlayıcı  ← **SIRADAKİ**
+## P2 — Tetik + zamanlayıcı ✅ TAMAMLANDI (2026-08-28)
+
+**Uygulama artık repo kökündeki `app/` altında; `spikes/` burada bitti.** Katmanlar,
+core → WebView sözleşmesi, kararlar ve tuzaklar: **`docs/P2-SONUC.md`**.
+
+- **Çıkış kriteri 5 sağlandı:** `cargo test` → **16/16**. Gürültü kuralları ve
+  görünürlük durum makinesi birim testli; testler kriterlerin kendisini kodluyor
+  (10 art arda tetik → tek kutu, P1'in 811 ms'lik serisi → tek açılış + yerinde
+  güncelleme, boş oturum → hiçbir efekt).
+- **Kriter 1–4 kısmen doğrulandı.** Kutu doğru anda beliriyor, kaynak ve çalma
+  durumu doğru yazılıyor, süre dolunca kayboluyor. **Ses tuşuna arka arkaya basma**
+  ve **Spotify penceresinden fareyle durdurma** senaryoları ayrıca teyit edilmedi —
+  P3'ün ilk işi, tasarım bağlanmadan önce (sonra bir aksaklığın hangi katmandan
+  geldiğini ayırt etmek zorlaşır).
+- **Çalıştırma: `cd app && npm run tauri dev`.** `cargo run` tek başına çalışmaz —
+  debug derlemesi `devUrl`'e gider, Vite ayakta değilse WebView "localhost
+  bağlantıyı reddetti" gösterir.
+
+<details>
+<summary>Özgün P2 planı</summary>
+
 
 Artık gerçek uygulama; `spikes/` burada biter. İçerik hâlâ çirkin olabilir — bu aşamada
 tasarım bağlanmıyor, `design/` P3'ün işi. Amaç: **doğru anda beliren, doğru anda
@@ -181,17 +201,33 @@ opaklık sıfırlamak değil. Pencere bir kez oluşturulur, bir daha yok edilmez
   "P2/P3" yazıyordu). Gerekçe: gerçek UI olmadan `IsVisible=false` / `TrySuspend`
   uygulanıp uyanma bedeli anlamlı biçimde yeniden ölçülemez.
 
+</details>
+
 ---
 
-## P3 — Arayüz
+## P3 — Arayüz  ← **SIRADAKİ**
 
-`design/` altındaki CSS'i frontend'e bağla.
+`design/` altındaki CSS'i frontend'e bağla. Backend hazır: tek kanal (`flyout`),
+tek payload (`core::engine::Frame`) — alan alan dökümü `docs/P2-SONUC.md` § 2'de,
+**oraya bakmadan DOM yazma.**
 
-- `flyout.css` + iki tema dosyası
-- `PlayerState` → DOM
+**İlk iş (P2'den devir):** ses tuşuna arka arkaya basma ve Spotify penceresinden
+fareyle durdurma senaryolarını mevcut yer tutucu kutuyla doğrula. Tasarım ondan
+sonra bağlanır.
+
+- `flyout.css` + iki tema dosyası. `app/src/styles.css` ve `index.html` **yer
+  tutucu**; oradaki değerleri `design/`'a taşıma, tersi geçerli.
+- `PlayerState` → DOM. `phase` animasyonu yönetiyor: `enter` giriş, `update`
+  **animasyonsuz yerinde güncelleme** (başlık olaydan 270 ms sonra geliyor),
+  `leave` çıkış. `position` **null gelebilir**, `album` boş, `controls.next`
+  false olabilir.
 - Kapak görselini gizliyken önden çöz ve cache'le
 - Giriş/çıkış animasyonu, 150 ms
-- Tema değiştirme (`data-theme` attribute), köşe ve monitör seçimi, DPI
+- Tema değiştirme (`data-theme` attribute), köşe ve monitör seçimi, DPI. Şu an
+  pencere **birincil monitörün** sağ üst köşesine 16 px boşlukla konuluyor
+  (`adapters/window.rs`).
+- **AudioAdapter'ın cihaz değişimi yolu gerçek donanımla denenmedi** — kulaklık
+  takıp çıkararak doğrula (`IMMNotificationClient` → yeniden bağlanma).
 - **WebView2'nin gizliyken render'ını durdur** (`WebView::set_visible` / `TrySuspend`)
   ve **P0 ölçümünü tekrarla** — bugünkü 11 ms render döngüsü sıcakken alındı, asıl
   uyanma bedeli o zaman ortaya çıkacak (bkz. `docs/P0-SONUC.md` yan bulgu)

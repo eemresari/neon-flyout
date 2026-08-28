@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>neon-flyout</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <!--
+      P2 iskeleti. Tasarım (design/flyout.css + temalar) P3'te bağlanacak;
+      buradaki kutu yalnızca tetik ve zamanlayıcı doğru mu diye bakmak için.
+    -->
+    <div id="fly" class="fly" data-kind="media" data-state="paused" data-phase="leave">
+      <div class="fly__head">
+        <span id="state">—</span>
+        <span id="source"></span>
+      </div>
+      <div id="title" class="fly__title">—</div>
+      <div id="sub" class="fly__sub"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
