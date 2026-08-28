@@ -17,6 +17,8 @@ Hedef makine: Windows 11 x64. Minimum: Windows 10 1809 (build 17763).
 3. **P1 tamamlandı (2026-08-28): SMTC okunuyor, oturum geçişi doğrulandı.** Tekrar
    ölçme; olay akışının gerçek şekli `docs/P1-SONUC.md`'de.
 4. **`docs/ROADMAP.md` → P2'den (tetik + zamanlayıcı) başla**, sonra sırayla devam.
+   P2 bölümü P1 ölçümüne göre yeniden yazıldı ve adım adım (P2.0–P2.4) veriliyor;
+   ilk adım uygulama iskeletini kurmak — **henüz yok**, `app/` altında olacak.
 
 `spikes/` altındaki üç proje P0 ve P1'in ölçüm düzeneğidir — **atılacak koddur**,
 uygulamanın iskeleti değil. Uygulama ayrıca kurulacak.
@@ -117,7 +119,8 @@ Ayrıntı ve diğer altı madde: `docs/P1-SONUC.md` § 8.
 **WebView2'nin render döngüsünü durdurmuyor** — gizliyken de saniyede 185 kare üretiyor
 (60 sn'de 11 098 kare). Tauri'nin `window.hide()` yolu da durdurmuyor. Direct Flip
 korunuyor ama GPU boşuna çalışıyor; kutu günün çoğunu gizli geçireceği için pil ömrü
-açısından P2/P3'te çözülmeli.
+açısından çözülmeli — **P3'e alındı**, çünkü gerçek UI olmadan uyanma bedeli anlamlı
+biçimde yeniden ölçülemez.
 
 ---
 

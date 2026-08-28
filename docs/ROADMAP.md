@@ -79,19 +79,107 @@ Tauri yok, UI yok. Sadece bir Rust konsol uygulaması.
 
 ---
 
-## P2 — Tetik + zamanlayıcı
+## P2 — Tetik + zamanlayıcı  ← **SIRADAKİ**
 
-Artık gerçek uygulama. İçerik hâlâ çirkin olabilir.
+Artık gerçek uygulama; `spikes/` burada biter. İçerik hâlâ çirkin olabilir — bu aşamada
+tasarım bağlanmıyor, `design/` P3'ün işi. Amaç: **doğru anda beliren, doğru anda
+kaybolan, titremeyen bir kutu.**
 
-- Dört tetikleyiciyi bağla (`docs/ARCHITECTURE.md` → Tetikleyiciler)
-- Gürültü kurallarının **dördünü de** yaz: ilk-olay yutma, no-op yutma,
-  birleştirme, ön plan kuralı — **kuralların P1 ölçümüyle düzeltilmiş hâli için
-  `docs/P1-SONUC.md` § 8**
-- Tek deadline zamanlayıcısı + görünürlük durum makinesi
-- Pencere gerçekten belirip kayboluyor, `SW_HIDE` ile
+### P2.0 — İskeleti kur (henüz yok)
 
-**Çıkış:** Ses tuşuna 10 kez arka arkaya bas — tek kutu görünüyor, üst üste binme yok,
-titreme yok. Spotify penceresinden durdur — kutu çıkıyor (Windows'unki çıkmıyor).
+Uygulama kodu **repo kökündeki `app/`** altında yaşar (`spikes/` atılacak koddan
+ayrı dursun diye).
+
+```bash
+npm create tauri-app@latest      # elle uydurma; ad: neon-flyout, dizin: app
+```
+
+Şablon **vanilla + TypeScript**: `design/` düz HTML/CSS, araya framework sokmanın
+karşılığı yok.
+
+Pencere ayarları P0'da doğrulanan haliyle (`tauri.conf.json`):
+`transparent: true`, `decorations: false`, `alwaysOnTop: true`, `skipTaskbar: true`,
+`focus: false`, `visible: false`. Ek stiller `WindowAdapter`'dan
+`SetWindowLongPtr(GWL_EXSTYLE)` ile: `WS_EX_NOACTIVATE` (Tauri'nin `focus:false`'u tek
+başına yetmiyor), `WS_EX_TOOLWINDOW`, `WS_EX_TRANSPARENT`.
+
+Rust tarafı `docs/ARCHITECTURE.md`'deki katmanlara birebir oturur:
+
+```
+app/src-tauri/src/
+  main.rs            pencereyi kurar, adapter thread'lerini baslatir, mpsc'yi baglar
+  core/              PlayerState, gurultu kurallari, gorunurluk durum makinesi
+  adapters/smtc.rs   SmtcAdapter
+  adapters/audio.rs  AudioAdapter
+  adapters/window.rs WindowAdapter
+```
+
+**Mimari kuralı burada uygulanır:** `unsafe`, WinRT tipi ve COM arayüzü yalnızca
+`adapters/` içinde görünür. `core/` Windows'a dair hiçbir tip bilmez — test edilebilir
+tek katman odur ve P2'nin testleri oraya yazılır.
+
+### P2.1 — SmtcAdapter
+
+`spikes/p1-smtc/src/main.rs`'deki abonelik kurulumu buraya taşınabilir (MTA
+`CoInitializeEx`, oturum başına sök-tak, `CurrentSessionChanged`). **Taşınmayacak olan:**
+spike'ın mutex'le tuttuğu durum. Adapter durum tutmaz; olayı domain tipine çevirip
+mpsc'ye yazar — P1 § 7'de olayların eşzamanlı thread'lerde geldiği ölçüldü.
+
+### P2.2 — AudioAdapter
+
+`IMMDeviceEnumerator` → `IAudioEndpointVolume`, tetik `IAudioEndpointVolumeCallback::OnNotify`.
+Cihaz değişimi `IMMNotificationClient` ile. Kendi thread'i, kendi apartment'ı.
+**Bu aşamanın ölçülmemiş tek parçası** — beklenmedik davranışta tahmin etme, küçük bir
+spike yaz.
+
+### P2.3 — Gürültü kuralları
+
+Dördü de yazılacak, ama **P1'in düzelttiği hâliyle** — gerekçeler `docs/P1-SONUC.md`
+§ 6 ve § 8'de, oraya bakmadan yazma:
+
+1. **İlk olayı yut.** Abonelikte olay gelmedi (§ 6.1), kural yine de koruma amaçlı kalır.
+2. **Değişmeyeni yut.** Aynı (başlık, sanatçı, durum) üçlüsü tekrar gelirse at. Spotify
+   aynı olayı 2 kez, Edge 3 kez gönderdi.
+3. **Birleştirme penceresi animasyonu yönetir, gösterimi değil.** Tek parça geçişi
+   811 ms'ye yayılan 8 olay üretiyor ve başlık 270. ms'de geliyor: ilk anlamlı olay
+   kutuyu **hemen** açar, sonraki ~1 sn içindeki olaylar içeriği **yerinde** günceller
+   ve deadline'ı ileri alır — animasyonu baştan oynatmaz.
+4. **Ön plandakini atla** *(ayar, kapatılabilir)*.
+
+Ayrıca P1'den gelen üç kesin kural:
+
+- `CurrentSessionChanged` **tek başına tetik değildir** — yeni oturum boş doğuyor,
+  içerik 14 ms sonra geliyor.
+- `Opened` ve `Closed` durumları kutuyu açmaz. `Changing` tolere edilir ama beklenmez.
+- `TimelinePropertiesChanged` ve `SessionsChanged` **tetik değildir** (duraklatılmışken
+  bile geliyor).
+- `LastUpdatedTime == 0` → pozisyon "bilinmiyor"; interpolasyona sokma.
+
+### P2.4 — Görünürlük durum makinesi
+
+`docs/ARCHITECTURE.md` → Görünürlük durum makinesi. Tek deadline, iki durum, tek
+yazıcı görev. Gösterme/gizleme `ShowWindow` ile; **gizlerken gerçek `SW_HIDE`**,
+opaklık sıfırlamak değil. Pencere bir kez oluşturulur, bir daha yok edilmez.
+
+### Çıkış kriteri
+
+1. Ses tuşuna 10 kez arka arkaya bas — **tek kutu**, üst üste binme yok, titreme yok.
+2. Spotify penceresinden (fareyle) durdur — **kutu çıkıyor**; Windows'unki çıkmıyor.
+   Projenin tek gerçek değeri budur, bu maddeyi atlama.
+3. Parça değiştir — kutu bir kez açılıyor, başlık 270 ms sonra gelince **yerinde**
+   güncelleniyor, animasyon iki kez oynamıyor.
+4. Tarayıcı sekmesi ↔ Spotify geçişinde boş kutu **görünmüyor**.
+5. `core/` katmanının gürültü kuralları birim testli ve `cargo test` geçiyor.
+
+### P2'de yapılmayacaklar
+
+- `design/` bağlanmayacak (P3), tema/DPI/monitör seçimi yok.
+- Kapak görseli çözülmeyecek (P3).
+- Windows'un kendi flyout'u bastırılmayacak (P4) — 2. maddedeki "Windows'unki
+  çıkmıyor" ifadesi fare/uygulama kaynaklı durdurmada zaten çıkmadığı içindir.
+- WebView2'nin gizliyken render'ı durdurulmayacak → **P3'e alındı** (`CLAUDE.md`'de
+  "P2/P3" yazıyordu). Gerekçe: gerçek UI olmadan `IsVisible=false` / `TrySuspend`
+  uygulanıp uyanma bedeli anlamlı biçimde yeniden ölçülemez.
 
 ---
 
@@ -104,6 +192,9 @@ titreme yok. Spotify penceresinden durdur — kutu çıkıyor (Windows'unki çı
 - Kapak görselini gizliyken önden çöz ve cache'le
 - Giriş/çıkış animasyonu, 150 ms
 - Tema değiştirme (`data-theme` attribute), köşe ve monitör seçimi, DPI
+- **WebView2'nin gizliyken render'ını durdur** (`WebView::set_visible` / `TrySuspend`)
+  ve **P0 ölçümünü tekrarla** — bugünkü 11 ms render döngüsü sıcakken alındı, asıl
+  uyanma bedeli o zaman ortaya çıkacak (bkz. `docs/P0-SONUC.md` yan bulgu)
 
 **Çıkış:** `design/preview.html`'deki sekiz durumun sekizi de uygulamada birebir aynı
 görünüyor.
