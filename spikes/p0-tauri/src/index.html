@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>P0 — gecikme kapisi</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 400px; height: 120px;
+    background: transparent; overflow: hidden;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  /* Uretim plakasi gibi: opak taban. Bos bir sayfa olcumu iyimser gosterir,
+     cunku bosaltilacak/boyanacak piksel yoktur. */
+  /* Sag 110px bilerek SEFFAF birakildi: backdrop-filter'in asil sinandigi yer
+     orasi. Plakanin ustunde bulaniklastirma zaten duz bir gradyani bulaniklastirir
+     ve hicbir sey kanitlamaz — soru, seffaf pencerede ARKADAKI MASAUSTUNUN
+     bulaniklasip bulaniklasmadigi. */
+  .plate {
+    position: absolute; inset: 0 110px 0 0;
+    background: linear-gradient(160deg, #071016 0%, #04090C 100%);
+    border: 1px solid #2AA9BC;
+    box-shadow: 0 0 24px rgba(79,233,247,.25);
+    color: #E8F8FB;
+    display: grid; grid-template-columns: 88px 1fr; gap: 12px;
+    padding: 12px; box-sizing: border-box;
+  }
+  .art { background: linear-gradient(135deg, #123, #4FE9F7 140%); }
+  .lab { font-size: 11px; color: #7DA3AE; letter-spacing: .14em; }
+  .big { font-size: 17px; color: #E8F8FB; margin-top: 4px; }
+  .bar { height: 6px; background: #12242B; margin-top: 10px; }
+  .fill { height: 100%; background: #4FE9F7; width: 10%; }
+  /* Varsayim #4: seffaf Tauri penceresinde backdrop-filter calisiyor mu? */
+  .blur {
+    position: absolute; right: 6px; top: 6px; width: 98px; height: 52px;
+    /* grayscale bilerek: "renk biraz degisti mi?" goz karari yerine
+       R=G=B olup olmadigina bakilir — yapisal, tartisilmaz bir imza. */
+    backdrop-filter: grayscale(1) blur(10px);
+    -webkit-backdrop-filter: grayscale(1) blur(10px);
+    border: 1px solid #F0B03D; color: #F0B03D;
+    font-size: 9px; display: grid; place-items: center; letter-spacing: .1em;
+  }
+  /* Kontrol karesi: ayni yerde, ayni boyutta, ama filtresiz. Ikisi yan yana
+     gorununce "blur calisti mi?" sorusu goz kararina birakilmaz. */
+  .noblur {
+    position: absolute; right: 6px; bottom: 6px; width: 98px; height: 52px;
+    border: 1px solid #55818C; color: #55818C;
+    font-size: 9px; display: grid; place-items: center; letter-spacing: .1em;
+  }
+</style>
+</head>
+<body>
+  <div class="plate">
+    <div class="art"></div>
+    <div>
+      <div class="lab">P0 GECIKME KAPISI</div>
+      <div class="big" id="n">—</div>
+      <div class="bar"><div class="fill" id="f"></div></div>
+    </div>
+  </div>
+  <div class="blur">BACKDROP-FILTER</div>
+  <div class="noblur">FILTRESIZ KONTROL</div>
+
+<script>
+  const invoke = window.__TAURI__.core.invoke;
+  const n = document.getElementById("n");
+  const f = document.getElementById("f");
+  let k = 0;
+
+  function tick() {
+    // Once sinyal: rAF callback'inin en basinda, ek is yapmadan.
+    invoke("frame").catch(() => {});
+    // Sonra gercek bir DOM degisikligi — yoksa kompozitor kareyi atlayabilir
+    // ve "ilk boyanan kare" olcumu anlamsizlasir.
+    k++;
+    n.textContent = "kare " + k;
+    f.style.width = (k % 100) + "%";
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+  invoke("ready").catch(() => {});
+</script>
+</body>
+</html>

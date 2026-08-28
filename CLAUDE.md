@@ -11,10 +11,12 @@ Hedef makine: Windows 11 x64. Minimum: Windows 10 1809 (build 17763).
 
 ## İlk oturumda sırayla yapılacaklar
 
-1. Bu dosyayı ve `docs/` altındaki üç dosyayı oku.
-2. **`docs/ROADMAP.md` → P0'ı çalıştır.** P0 bir ölçüm, kod değil, ve sonucu yığın
-   seçimini değiştirebilir. P0 geçmeden P1'e başlama.
-3. P0 geçerse P1 (SMTC spike), sonra sırayla devam.
+1. Bu dosyayı ve `docs/` altındaki dosyaları oku — **`docs/P0-SONUC.md` dahil.**
+2. **P0 tamamlandı (2026-08-28): kapı geçildi, yığın Tauri v2 + Rust.** Tekrar ölçme.
+3. **`docs/ROADMAP.md` → P1'den (SMTC spike) başla**, sonra sırayla devam.
+
+`spikes/` altındaki iki proje P0'ın ölçüm düzeneğidir — **atılacak koddur**, uygulamanın
+iskeleti değil. Uygulama ayrıca kurulacak.
 
 Tasarım hazır ve `design/` altında gerçek CSS olarak duruyor — yeniden tasarlama,
 oradan al.
@@ -59,8 +61,10 @@ opaklığı sıfırlayıp bırakmak yanlış, pencereyi gerçekten gizlemek gere
 crate'i (SMTC, WASAPI ve Win32'nin tamamı Rust'tan çağrılabiliyor, ek native addon
 gerekmiyor). Arayüz WebView2'de HTML/CSS.
 
-**P0 gecikme kapısı geçmezse yedek plan: .NET 8 + WPF.** Karar P0'da ölçümle verilir,
-tartışmayla değil.
+**Karar verildi (2026-08-28, P0):** Tauri p95 **12.9 ms**, bütçe 50 ms → kapı geçildi.
+WPF referansı 11.1 ms; aradaki ~1–2 ms 50 ms bütçesi karşısında anlamsız, dolayısıyla
+tasarımı XAML'e taşımayı haklı çıkaracak bir gerekçe yok. **WPF yedek planı kapandı.**
+Ayrıntı: `docs/P0-SONUC.md`.
 
 Proje iskeleti şu komutla kurulur — elle uydurma:
 
@@ -75,16 +79,31 @@ npm create tauri-app@latest
 Bunlar bilerek açık bırakıldı. Herhangi birini "muhtemelen şöyledir" diye kabul edip
 üstüne kod yazma; küçük bir spike yaz, ölç, sonucu buraya yaz.
 
-1. **Gizli bir WebView2 penceresi `SW_SHOW`'dan sonra kaç ms'de ilk kareyi basar?**
-   Bütçe 50 ms. Bilinmiyor. Tüm yığın kararı buna bağlı → P0.
-2. **Windows'un native flyout'unu gizlemenin güncel yöntemi.** Belgelenmemiş; sürümden
+1. **Windows'un native flyout'unu gizlemenin güncel yöntemi.** Belgelenmemiş; sürümden
    sürüme değişiyor (`XamlExplorerHostIslandWindow`, `NativeHWNDHost` isimleri geçiyor
    ama hangisinin doğru olduğu doğrulanmadı). Kaynak: FluentFlyout ve ModernFlyouts
    depolarındaki güncel handler kodu.
-3. **`globalMediaControl` capability'si** paketlenmemiş bir Win32 exe'de gerekiyor mu?
+2. **`globalMediaControl` capability'si** paketlenmemiş bir Win32 exe'de gerekiyor mu?
    Muhtemelen hayır, ama test edilmedi. Sadece MSIX paketlersen sorun olur.
-4. **Şeffaf Tauri penceresinde `backdrop-filter: blur()`** Windows'ta çalışıyor mu?
-   macOS'ta bozulduğu raporlanmış. Tasarımlar blur'a bağımlı değil, ama denenebilir.
+3. **WebView2 gizliyken render'ı durdurulunca uyanma bedeli ne olur?** P0'da ölçülen
+   11 ms, render döngüsü **sıcakken** alındı — `SW_HIDE` WebView2'yi durdurmuyor (bkz.
+   aşağıdaki bulgu). `IsVisible=false` / `TrySuspend` uygulandığında gerçek uyanma bedeli
+   ortaya çıkacak ve **ölçüm tekrarlanmalı.**
+
+## P0'da cevaplanan varsayımlar
+
+- ~~Gizli WebView2 penceresi `SW_SHOW`'dan sonra kaç ms'de ilk kareyi basar?~~
+  **11.1 ms (p50) / 12.9 ms (p95)**, bütçe 50 ms. 60 sn derin bekleme ek maliyet
+  getirmiyor. Ekran dışına taşıma alternatifi kazanç sağlamıyor → `SW_HIDE` doğrulandı.
+- ~~Şeffaf Tauri penceresinde `backdrop-filter` çalışıyor mu?~~ **Hayır**, şeffaf bölgede
+  hiçbir şey yapmıyor (CSS "backdrop"ı sayfanın kendi zemini; masaüstü buna dahil değil).
+  Tasarımlar blur'a bağımlı olmadığı için etkisi yok.
+
+**Yan bulgu — mimariyi ilgilendiriyor:** `SW_HIDE` pencereyi Win32/DWM'den gizliyor ama
+**WebView2'nin render döngüsünü durdurmuyor** — gizliyken de saniyede 185 kare üretiyor
+(60 sn'de 11 098 kare). Tauri'nin `window.hide()` yolu da durdurmuyor. Direct Flip
+korunuyor ama GPU boşuna çalışıyor; kutu günün çoğunu gizli geçireceği için pil ömrü
+açısından P2/P3'te çözülmeli.
 
 ---
 
@@ -103,6 +122,10 @@ CLAUDE.md                 bu dosya
 docs/ARCHITECTURE.md      katmanlar, adapter'lar, API haritası, gecikme bütçesi
 docs/ROADMAP.md           P0–P5, her birinin çıkış kriteri
 docs/DESIGN.md            DOM sözleşmesi, tema sistemi, token tablosu
+docs/P0-SONUC.md          gecikme kapısı ölçümü, yöntem ve karar
+spikes/p0-tauri           P0 ölçüm düzeneği — Tauri (atılacak kod)
+spikes/p0-wpf             P0 ölçüm düzeneği — WPF karşılaştırması (atılacak kod)
+spikes/analyze.py         measurements/*.csv → p50/p95 tablosu
 design/flyout.css         tema-bağımsız iskelet — kutu, ızgara, ölçüler
 design/themes/cyber.css   cyber teması: token'lar + yapısal override'lar
 design/themes/neon.css    neon teması: aynısı

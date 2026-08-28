@@ -4,7 +4,22 @@ Her aşamanın bir çıkış kriteri var. Kriter sağlanmadan sonraki aşamaya g
 
 ---
 
-## P0 — Gecikme kapısı ⛔ git / gitme kararı
+## P0 — Gecikme kapısı ✅ TAMAMLANDI (2026-08-28) — GEÇTİ
+
+**Sonuç: Tauri p95 12.9 ms / bütçe 50 ms → yığın Tauri v2 + Rust.** Ölçüm yöntemi,
+sayılar ve yan bulgular: **`docs/P0-SONUC.md`**. Aşağıdaki plan tarihsel kayıt olarak
+duruyor; iki noktada uygulamadan ayrıldı:
+
+- rAF ile ilk kareyi yakalama yöntemi **geçersiz çıktı** (render döngüsü pencere
+  gizliyken durmuyor). Yerine masaüstü pikselini yoklayan, çerçeveden bağımsız yöntem
+  kullanıldı.
+- Yol haritasında olmayan iki profil eklendi: `hide-long` (60 sn derin bekleme) ve
+  `offscreen-short` (alternatif gizleme). İkisi de karara katkı sağladı.
+
+**Bu aşamayı tekrar çalıştırma; P1'den devam et.**
+
+<details>
+<summary>Özgün P0 planı</summary>
 
 **Bu bir ölçüm, uygulama değil.** UI yok, tasarım yok, SMTC yok.
 
@@ -24,6 +39,8 @@ Sonucu `CLAUDE.md`'deki varsayım listesine yaz.
 
 İkinci soru, aynı anda ölçülebilir: şeffaf pencerede `backdrop-filter: blur()`
 Windows'ta çalışıyor mu?
+
+</details>
 
 ---
 
