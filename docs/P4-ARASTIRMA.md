@@ -169,9 +169,38 @@ başarısız olduğunda uygulama çalışmaya devam ediyor"*) zaten tam olarak b
    beklenen sonuç "hiçbir şey bulunamadı, uygulama normal çalışıyor" — çıkış
    kriterinin kendisi bu.
 
-**Bloke:** Rust derlemesi Smart App Control tarafından engellendiği için bu kod
-yazılıp doğrulanamıyor (`CLAUDE.md` → SAC bölümü). Karar verilene kadar P4 burada
-duruyor.
+### Durum: kod yazıldı, **derlenmedi**
+
+`app/src-tauri/src/adapters/native_flyout.rs` yukarıdaki planı uyguluyor ama
+**`adapters/mod.rs`'e bağlanmadı** — yani derlemeye hiç girmiyor. Sebep: Smart App
+Control (§ 6). Engel kalkınca sırayla:
+
+1. `adapters/mod.rs` → `pub mod native_flyout;`
+2. `cargo test --lib` (derleme + mevcut 16 test)
+3. `lib.rs` `setup`'ında `native_flyout::suppress()`, çıkışta `restore()`
+4. `spikes/p4-probe/p4-probe.ps1` ile öncesi/sonrası karşılaştır
+
+Bu makinede beklenen sonuç `suppress() == false` ve uygulamanın normal çalışması —
+çıkış kriterinin kendisi bu.
+
+---
+
+## 6. Neden derlenemedi — SAC denemelerinin dökümü
+
+`CLAUDE.md` → SAC bölümü durumu anlatıyor; bu oturumda denenenler ve sonuçları:
+
+| Deneme | Sonuç |
+|---|---|
+| `rustup update stable` | **Boşa gitti.** rustc'nin sürümünü okuyamadığı için "unchanged" deyip hiç indirmedi. |
+| Olay günlüğü (`Microsoft-Windows-CodeIntegrity/Operational`) | Engel netleşti: olay 3033/3077, `~/.cargo/bin/rustc.exe` → toolchain `rustc.exe` yüklenemiyor, *"did not meet the Enterprise signing level requirements"*, Policy `{0283ac0f-…}`. |
+| `beta` toolchain kurulumu (1.99.0-beta.2) | **Kısmi kazanç.** Farklı hash → beta `rustc.exe` 3/3 çalışıyor. |
+| İkili bazında tarama | stable `cargo.exe` ✅ 3/3 · stable `rustc.exe` ❌ 3/3 · beta `cargo.exe` ❌ 3/3 · beta `rustc.exe` ✅ 3/3. **Engellenen `~/.cargo/bin` shim'leri ve stable rustc; çalışan kombinasyon stable cargo + beta rustc.** |
+| `RUSTC=<beta> <stable cargo> test --lib`, üç farklı `build-override` bayrak kümesiyle | **Üçü de başarısız**, ama her seferinde *farklı* bir build script'te (`getrandom`, `quote`, yine `getrandom` — farklı hash). ~20-40 crate derlendikten sonra düşüyor. |
+
+**Sonuç:** bayrak değiştirmek build script'lerin hash'ini değiştiriyor ama hepsini
+birden geçirmiyor; her deneme yeni bir kura. Yakınsamıyor. Geriye iki gerçek yol
+kalıyor ve **ikisi de kullanıcı kararı**: SAC'ı kapatmak (*geri alınamaz*) veya
+derlemeyi GitHub Actions'ta yapmak (depo zaten public).
 
 ---
 
