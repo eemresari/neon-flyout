@@ -255,12 +255,26 @@ görünüyor.
 
 ---
 
-## P4 — Native flyout bastırma  ← **SIRADAKİ**
+## P4 — Native flyout bastırma  ← **SIRADAKİ (araştırma bitti, kod bloke)**
 
 Ayrı ve en sonda, çünkü uygulama bu olmadan da kullanılabilir olmalı.
 
-- `NativeFlyoutSuppressor` modülü, sürüm başına strateji
-- Bulunamazsa sessiz vazgeç, ayarlarda durumu göster
+**Araştırma ve ölçüm tamamlandı (2026-08-29): `docs/P4-ARASTIRMA.md`.** Yöntem
+bulundu (ModernFlyouts + FluentFlyout kaynağından), ama **bu makinede bastırılacak
+pencere yok** — Windows kutusunu ses/medya *tuşuna* açıyor, kullanıcı ise sesi
+fareyle değiştiriyor. 45 sn pasif izleme (437 pencere, 50 ms örnekleme) ses
+değişimi anında tek bir Windows penceresi bile kıpırdamadığını gösterdi.
+
+Dolayısıyla P4 bir özellik değil **emniyet kemeri**: ara, bulursan bastır,
+bulamazsan sessizce vazgeç. Uygulama planı `docs/P4-ARASTIRMA.md` § 5'te; iki
+madde pazarlık dışı:
+
+- **`GetWindowBand(hWnd) == 0x12` şartı zorunlu.** Onsuz FluentFlyout'un sezgiseli
+  bu makinede **Alt+Tab penceresini** seçip ekran dışına taşıyor (§ 3.1'de ölçüldü).
+- **Geri alınabilir olmalı:** çıkışta ex-style, konum ve `SW_RESTORE` geri konur.
+
+**Bloke:** Smart App Control `rustc`'yi engellediği için kod yazılıp doğrulanamıyor
+(`CLAUDE.md` → SAC bölümü). Karar kullanıcıda.
 
 **Çıkış:** Bastırma başarısız olduğunda uygulama çalışmaya devam ediyor.
 

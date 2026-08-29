@@ -22,7 +22,11 @@ Hedef makine: Windows 11 x64. Minimum: Windows 10 1809 (build 17763).
 5. **P3 tamamlandı (2026-08-28): tasarım bağlı, sekiz durum uygulamada çıkıyor,
    WebView2 gizliyken render'ı duruyor.** DOM'a veya `design/`'a dokunmadan önce
    `docs/P3-SONUC.md`'yi oku.
-6. **`docs/ROADMAP.md` → P4'ten (native flyout bastırma) başla**, sonra P5.
+6. **P4 araştırması bitti (2026-08-29): `docs/P4-ARASTIRMA.md`.** Yöntem bulundu,
+   ama bu makinede bastırılacak pencere yok; P4 "ara, bulamazsan sessiz vazgeç"
+   koduna indi. **Ölçümü tekrarlama, § 5'teki planı uygula** — ama önce SAC
+   engeline bak, Rust derlemesi şu an kapalı olabilir.
+7. Sonra `docs/ROADMAP.md` → P5 (paketleme).
 
 `spikes/` altındaki üç proje P0 ve P1'in ölçüm düzeneğidir — **atılacak koddur**,
 uygulamanın iskeleti değil. Uygulama `app/` altında ayrı duruyor.
@@ -89,13 +93,22 @@ npm create tauri-app@latest
 
 ## Doğrulanmamış varsayımlar — tahmin etme, ölç
 
-Bunlar bilerek açık bırakıldı. Herhangi birini "muhtemelen şöyledir" diye kabul edip
-üstüne kod yazma; küçük bir spike yaz, ölç, sonucu buraya yaz.
+**Şu an açık madde yok** (2026-08-29). Yeni bir varsayım doğduğunda buraya yaz ve
+"muhtemelen şöyledir" diye kabul edip üstüne kod yazma; küçük bir spike yaz, ölç,
+sonucu aşağıdaki listelerden birine geçir.
 
-1. **Windows'un native flyout'unu gizlemenin güncel yöntemi.** Belgelenmemiş; sürümden
-   sürüme değişiyor (`XamlExplorerHostIslandWindow`, `NativeHWNDHost` isimleri geçiyor
-   ama hangisinin doğru olduğu doğrulanmadı). Kaynak: FluentFlyout ve ModernFlyouts
-   depolarındaki güncel handler kodu.
+## P4'te cevaplanan varsayımlar
+
+- ~~**Windows'un native flyout'unu gizlemenin güncel yöntemi.**~~ **Cevaplandı
+  (2026-08-29, P4 araştırması).** Yöntem: build ≥ 22620'de dış pencere
+  `XamlExplorerHostIslandWindow` + iç pencere
+  `Windows.UI.Composition.DesktopWindowContentBridge`/`DesktopWindowXamlSource`,
+  öncesinde `NativeHWNDHost` + `DirectUIHWND`; doğru örneği ayırt etmek için
+  sahip süreç `explorer.exe` **ve** `GetWindowBand(hWnd) == 0x12` (`AboveLockUX`).
+  **Bant kontrolü zorunlu** — onsuz bu makinede Alt+Tab penceresi seçiliyor.
+  **Ama bu makinede bastırılacak pencere yok:** kullanıcı sesi tuşla değil fareyle
+  değiştiriyor, Windows da kutusunu tuş basımına açtığı için hiç çıkmıyor (45 sn
+  pasif izlemeyle ölçüldü). Ayrıntı ve uygulama planı: `docs/P4-ARASTIRMA.md`.
 
 ## P0'da cevaplanan varsayımlar
 
@@ -157,6 +170,8 @@ docs/P0-SONUC.md          gecikme kapısı ölçümü, yöntem ve karar
 docs/P1-SONUC.md          SMTC ölçümü: olay akışının gerçek şekli, P2'ye devredilenler
 docs/P2-SONUC.md          uygulama iskeleti, core→WebView sözleşmesi, tuzaklar
 docs/P3-SONUC.md          tasarımın bağlanması, kapak/metre, WebView2 uyutma ölçümü
+docs/P4-ARASTIRMA.md      native flyout: yöntem, pencere ölçümü, uygulama planı
+spikes/p4-probe           P4 ölçüm düzeneği — PowerShell pencere sondaları
 app/                      UYGULAMA (P2'den itibaren) — vanilla+TS frontend, Tauri v2
 app/src-tauri/src/core/     Windows tipi bilmeyen, test edilebilir katman
 app/src-tauri/src/adapters/ SMTC, WASAPI, WebView2, pencere — unsafe/COM yalnızca burada

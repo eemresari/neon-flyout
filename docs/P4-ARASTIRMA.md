@@ -1,11 +1,12 @@
 # P4 — native flyout bastırma: kaynak araştırması ve ilk ölçüm
 
-**Tarih:** 2026-08-29 · **Durum: araştırma bitti, ölçüm beklentiyi çürüttü.**
-Kod yazılmadı; önce cevaplanması gereken bir soru çıktı (§ 4).
+**Tarih:** 2026-08-29 · **Durum: araştırma ve ölçüm bitti, kod yazılmadı (SAC bloke).**
 
 Bu aşama `CLAUDE.md`'deki 1. doğrulanmamış varsayımı hedefliyor: *"Windows'un native
-flyout'unu gizlemenin güncel yöntemi."* Yöntemin **ne olduğu** artık biliniyor
-(§ 1–2); **bu makinede uygulanabilir olup olmadığı** bilinmiyor (§ 3).
+flyout'unu gizlemenin güncel yöntemi."* **Cevap alındı:** yöntem § 1–2'de, ama
+ölçüm (§ 3) bu makinede bastırılacak bir pencere olmadığını gösterdi — gerekçesi
+projenin kendi varlık sebebiyle aynı (§ 4). Uygulama planı § 5'te; Rust derlemesi
+Smart App Control tarafından engellendiği için yazılamadı.
 
 ---
 
@@ -107,34 +108,70 @@ GORUNURLUK False->True  [Tauri Window] pid=neon-flyout  band=1
 vb. süreçlere ait 66 üst düzey pencerenin tamamı listelendi. OSD host'una benzeyen
 tek aday yok; band 18'de hiçbir pencere yok.
 
+**3.4 — Pasif izleme, gerçek kullanıcı akışıyla.** Yukarıdaki ölçümler sentetik
+`keybd_event` kullanıyordu; kullanıcı **ses tuşunu hiç kullanmıyor, sesi fareyle
+değiştiriyor.** Dolayısıyla yanlış yol test edilmişti. `p4-passive.ps1` hiçbir girdi
+göndermeden 45 saniye boyunca 437 pencereyi 50 ms'de bir örnekledi; kullanıcı bu
+sırada sesi kendi normal yoluyla değiştirdi:
+
+```
+23:56:31.082  YENI PENCERE  [XamlExplorerHostIslandWindow] explorer band=1     ← snap layout
+23:56:34.135  YENI PENCERE  [Xaml_WindowedPopupClass] explorer 'PopupHost'
+23:56:36.822  GORUNURLUK False->True   [Tauri Window] neon-flyout              ← SES DEGISIMI
+23:56:39.479  GORUNURLUK True->False   [Tauri Window] neon-flyout              ← 2.6 sn sonra
+```
+
+Ses değiştiği anda (36.822) **hiçbir Windows penceresi yaratılmadı, gösterilmedi,
+kıpırdamadı.** 31. saniyedeki ada penceresi ses değil pencere sürüklemeye ait (aynı
+anda TouchDesigner penceresi taşınıyordu, band 1 = Desktop, saniyeler içinde yok
+oldu — sonradan alınan tarama yine tek `XamlExplorerHostIslandWindow` görüyor:
+Alt+Tab, band 16).
+
 ---
 
-## 4. Cevaplanması gereken soru — kod yazmadan önce
+## 4. Sonuç — bu makinede bastırılacak bir şey yok
 
-Ölçüm iki şeyden birini söylüyor ve hangisi olduğu **gözle** ayırt edilmeli:
+**Native OSD bu kullanıcının akışında hiç çıkmıyor**, ve sebebi projenin kendi
+varlık gerekçesiyle aynı: Windows'un flyout'u **ses/medya tuşuna basılmasına** tepki
+veriyor, **ses seviyesinin değişmesine** değil. Kullanıcı sesi fareyle değiştiriyor,
+dolayısıyla ortada basılmış bir tuş yok — Windows da kutusunu açmıyor. `CLAUDE.md`
+→ *"Neden bu uygulama var"* bölümünün ses tarafındaki karşılığı tam olarak bu.
 
-1. **Native OSD bu makinede zaten çıkmıyor.** (Daha önce bir araçla kapatılmış
-   olabilir, ya da bu derlemede davranış değişmiş.) Öyleyse P4'ün bastıracağı bir
-   şey yok; aşama "tespit et, yoksa sessiz vazgeç" koduna indirgenir.
-2. **Çıkıyor, ama sentetik `keybd_event` onu tetiklemiyor.** Kabuk enjekte edilmiş
-   girdiyi OSD yolunda eleyebiliyor. Öyleyse ölçüm geçersiz ve **fiziksel** tuşla
-   tekrarlanmalı.
+Sentetik `keybd_event` ile de OSD çıkmadı (§ 3.2); kabuk enjekte edilmiş girdiyi
+eliyor olabilir, ama bu artık **önemsiz** — gerçek akış zaten tuş kullanmıyor.
 
-`CLAUDE.md`'nin kuralı burada bağlayıcı: *tahmin etme, ölç.* İkisi arasında karar
-vermeden bastırma kodu yazmak, olmayan bir pencereyi kovalamak olur.
+**P4 buna göre küçülüyor:** bastırma bir *özellik* değil, bir *emniyet kemeri*.
+Kod, flyout penceresini arar; bulursa bastırır, bulamazsa sessizce vazgeçer — ki bu
+makinede her zaman ikincisi olacak. Yol haritasının çıkış kriteri (*"bastırma
+başarısız olduğunda uygulama çalışmaya devam ediyor"*) zaten tam olarak bunu istiyor.
 
 ---
 
-## 5. Sonraki adım (soru cevaplanınca)
+## 5. Uygulama planı
 
-- **1. şıksa:** `NativeFlyoutSuppressor` yalnızca *tespit* eder ve bulamazsa sessiz
-  vazgeçer; ayarlarda "native flyout bulunamadı" durumu gösterilir. P4 çıkış kriteri
-  zaten bunu istiyor.
-- **2. şıksa:** ölçüm fiziksel tuşla tekrarlanır, hedef pencere tespit edilir ve
-  § 2'deki FluentFlyout yaklaşımı **ModernFlyouts'un bant kontrolüyle birlikte**
-  uygulanır: `band == 0x12` şartı olmadan asla, yoksa Alt+Tab kurban gider.
-- Her iki durumda da bastırma `adapters/` katmanında yaşar (`unsafe`/Win32 kuralı),
-  `core/` bundan haberdar olmaz.
+`adapters/native_flyout.rs` — `unsafe`/Win32 kuralı gereği `adapters/` içinde;
+`core/` bundan haberdar olmaz.
+
+1. **Tespit** (`ModernFlyouts` yöntemi, birebir):
+   `FindWindowEx` döngüsüyle build'e göre dış sınıfı gez → iç pencereyi doğrula →
+   sahip süreç `explorer.exe` mi → **`GetWindowBand(hWnd) == 0x12` (`AboveLockUX`)**.
+   **Bant kontrolü pazarlık konusu değil:** § 3.1'de ölçüldüğü gibi, o şart olmadan
+   FluentFlyout'un sezgiseli bu makinede Alt+Tab penceresini seçer ve ekran dışına
+   taşır.
+2. **Bastırma** (`FluentFlyout` yöntemi): `WS_EX_LAYERED | WS_EX_TRANSPARENT` ekle,
+   `SetWindowPos(-99999, -99999)`, `SW_MINIMIZE`. Orijinal ex-style saklanır.
+3. **Geri alma:** çıkışta ex-style, konum ve `SW_RESTORE` geri konur. Uygulama
+   kapanınca kullanıcının masaüstünde kalıcı bir değişiklik bırakmıyoruz.
+4. **Bulamazsa:** tek satır günlük, `Ok(())`. Yeniden deneme yok, kanca yok,
+   zamanlayıcı yok — ModernFlyouts'un 3 sn'lik rehook döngüsü bize gereksiz;
+   o, bastırmanın *çalışmasına* bağımlı bir uygulama, biz değiliz.
+5. **Doğrulama:** `p4-probe.ps1` bastırma öncesi/sonrası çalıştırılır. Bu makinede
+   beklenen sonuç "hiçbir şey bulunamadı, uygulama normal çalışıyor" — çıkış
+   kriterinin kendisi bu.
+
+**Bloke:** Rust derlemesi Smart App Control tarafından engellendiği için bu kod
+yazılıp doğrulanamıyor (`CLAUDE.md` → SAC bölümü). Karar verilene kadar P4 burada
+duruyor.
 
 ---
 
