@@ -170,8 +170,17 @@ bak.
   anında değiştirmek için `__tema("neon")` var ama kalıcı ayar **P5'in işi**
   (ayar dosyası). Aynısı köşe/monitör seçimi için de geçerli; şu an kutu birincil
   monitörün sağ üst köşesinde, 16 px boşlukla.
-- **AudioAdapter'ın cihaz değişimi yolu gerçek donanımla hâlâ denenmedi**
-  (`IMMNotificationClient` → yeniden bağlanma). Tepe metresi bu yola bağlı değil
-  — o her gösterimde uç noktayı yeniden çözüyor — ama ses seviyesi callback'i
-  bağlı. Kulaklık takıp çıkararak doğrulanmalı.
+- ~~**AudioAdapter'ın cihaz değişimi yolu gerçek donanımla hâlâ denenmedi**~~
+  **Doğrulandı (2026-08-29, elle).** Kulaklık takılıp çıkarıldığında
+  `OnDefaultDeviceChanged` → `Rebind` → yeni uç noktaya abonelik işliyor; ses
+  değiştirildiğinde kutu çıkıyor ve `.fly__source` doğru cihaz adını yazıyor.
+  Tepe metresi zaten bu yola bağlı değildi — o her gösterimde uç noktayı yeniden
+  çözüyor.
+
+  **Yan bulgu:** `core/rules.rs → judge_volume` anahtarı `(yüzde, mute)`; cihaz
+  adı anahtarın parçası değil. Yeni cihazın seviyesi eskisiyle aynıysa `bind()`'ın
+  gönderdiği olay `Unchanged` diye yutulur, dolayısıyla kulaklığı takmak tek
+  başına kutuyu açmaz ve ekrandaki ad bir sonraki gerçek ses değişimine kadar
+  bayat kalır. Bilerek böyle bırakıldı: cihaz takmak kullanıcının "bana bir şey
+  göster" dediği bir an değil.
 - `TrySuspend` (bellek kazancı) — yukarıdaki gerekçeyle ertelendi.

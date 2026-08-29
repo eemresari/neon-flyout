@@ -96,8 +96,6 @@ Bunlar bilerek açık bırakıldı. Herhangi birini "muhtemelen şöyledir" diye
    sürüme değişiyor (`XamlExplorerHostIslandWindow`, `NativeHWNDHost` isimleri geçiyor
    ama hangisinin doğru olduğu doğrulanmadı). Kaynak: FluentFlyout ve ModernFlyouts
    depolarındaki güncel handler kodu.
-2. **AudioAdapter'ın cihaz değişimi yolu** (`IMMNotificationClient` → yeniden
-   bağlanma) gerçek donanımla hiç denenmedi. Kulaklık takıp çıkararak doğrula.
 
 ## P0'da cevaplanan varsayımlar
 
@@ -129,6 +127,14 @@ Ayrıntı ve diğer altı madde: `docs/P1-SONUC.md` § 8.
   Ham `SW_HIDE`'ın ölçtüğü "sıcak döngü" korkusu çıkmadı. `TrySuspend` de aynı
   gecikmeyi veriyor ama **kullanılmadı**: JS'i donduruyor, içerik-önce-pencere
   sırasını bozardı. Ayrıntı: `docs/P3-SONUC.md` § 5.
+- ~~AudioAdapter'ın cihaz değişimi yolu gerçek donanımla çalışıyor mu?~~ **Evet**
+  (2026-08-29, elle doğrulandı). Kulaklık takılıp çıkarıldığında `IMMNotificationClient`
+  → `Rebind` → yeni uç noktaya abonelik işliyor; kutu çıkıyor ve kaynak satırındaki
+  cihaz adı doğru cihaza dönüyor. **Yan bulgu:** `core/rules.rs → judge_volume`
+  anahtarı yalnızca `(yüzde, mute)`; cihaz adı anahtarın parçası değil, dolayısıyla
+  yeni cihazın seviyesi eskisiyle aynıysa takma anındaki olay `Unchanged` diye
+  yutulur ve ad bir sonraki gerçek ses değişimine kadar bayat kalır. Bilerek
+  bırakıldı: cihaz takmak tek başına kutu açmayı hak eden bir olay değil.
 
 ---
 
@@ -201,6 +207,25 @@ geçiyor. **Bağımlılığın build script'i engellenirse** kaynağa dokunmak h
 değiştirmez; `app/src-tauri/Cargo.toml`'daki `[profile.*.build-override]` bloğu tam
 bunun için duruyor (build script'leri farklı bayrakla derleyip hash'i değiştiriyor),
 P2'de `icu_properties_data` böyle aşıldı.
+
+**2026-08-29 — durum kötüleşti: `rustc.exe`'nin kendisi engelleniyor.** Hem rustup
+shim'i (`~/.cargo/bin/rustc.exe`) hem gerçek toolchain ikilisi, hem Bash'ten hem
+PowerShell'den, üst üste her denemede `os error 4551` veriyor. Sonuçları:
+
+- **Rust derlemesi tamamen kapalı.** `cargo build`/`check`/`test` (derleme gerektiren
+  her biçimi) çalışmıyor. Zaten derlenmiş hedefler çalışıyor: `cargo test --lib`
+  16/16 geçiyor (yeniden derleme gerekmediği için) ve `target/debug/neon-flyout.exe`
+  sorunsuz koşuyor.
+- **`npm run tauri dev` panikliyor**, sebebi bu: tauri-cli önce `rustc -vV` ile host
+  triple'ı okuyor, engellenince `None` alıp `unwrap()` ediyor
+  (`crates/tauri-cli/src/interface/rust.rs:1166`). Panik yanıltıcı — Tauri'de değil
+  SAC'ta sorun var, önce `rustc -vV` çalıştırıp teyit et.
+- **`build-override` çaresi burada işe yaramaz:** engellenen dosyayı biz üretmiyoruz,
+  hash'ini değiştiremeyiz.
+
+Derleme gerektirmeyen iş (P4 kaynak araştırması, doküman, `design/`, frontend —
+Vite + mevcut debug ikilisi ile canlı test) yapılabilir. Derleme gerektiren her şey
+aşağıdaki karar verilene kadar bloke.
 
 Kalıcı çözüm ikisinden biri, **ikisi de kullanıcı kararı**: SAC'ı kapatmak
 (*geri alınamaz* — tekrar açmak Windows'u sıfırlamayı gerektirir) veya derlemeleri
