@@ -70,6 +70,10 @@ pub struct MediaSnapshot {
     /// Kaynak uygulama şu an ön planda mı? 4. gürültü kuralının girdisi.
     /// Hesabı Windows'a bağlı olduğu için adapter dolduruyor.
     pub source_is_foreground: bool,
+    /// Kapak görseli, `data:image/...;base64,...`. Adapter kutu **gizliyken**
+    /// çözüp parça başına cache'liyor; ilk boyanan karede hazır olsun diye
+    /// (`docs/ROADMAP.md` P3). Kaynak vermiyorsa `None` → `--art-fallback`.
+    pub art: Option<String>,
 }
 
 impl Default for MediaSnapshot {
@@ -81,6 +85,7 @@ impl Default for MediaSnapshot {
             position: None,
             controls: Controls::default(),
             source_is_foreground: false,
+            art: None,
         }
     }
 }

@@ -26,5 +26,11 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+    fs: {
+      // 4. `design/` depo kökünde, Vite kökünün (app/) dışında. Tasarım üretim
+      //    kodu ve tek kaynak — kopyalamak yerine oradan import ediliyor
+      //    (`docs/DESIGN.md`: değeri koda taşıma, tersi geçerli).
+      allow: [".", ".."],
+    },
   },
 }));

@@ -7,14 +7,16 @@
 //! Kendi thread'i, kendi apartment'ı. Adapter durum tutmaz; okuduğunu domain
 //! tipine çevirip mpsc'ye yazar.
 
-use std::sync::mpsc::{sync_channel, Sender, SyncSender};
+use std::sync::mpsc::{sync_channel, RecvTimeoutError, Sender, SyncSender};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use windows::core::{implement, Result as WinResult, PCWSTR};
 use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
 use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::Media::Audio::Endpoints::{
     IAudioEndpointVolume, IAudioEndpointVolumeCallback, IAudioEndpointVolumeCallback_Impl,
+    IAudioMeterInformation,
 };
 use windows::Win32::Media::Audio::{
     eMultimedia, eRender, EDataFlow, ERole, IMMDevice, IMMDeviceEnumerator, IMMNotificationClient,
@@ -183,4 +185,89 @@ impl IMMNotificationClient_Impl for DeviceWatcher_Impl {
     fn OnPropertyValueChanged(&self, _id: &PCWSTR, _key: &PROPERTYKEY) -> WinResult<()> {
         Ok(())
     }
+}
+
+
+// ---------------------------------------------------------------- tepe metre --
+//
+// `design/flyout.css`: cyber `.fly__meter` (dikey segment), neon `.fly__spectrum`
+// (yatay çubuk). İkisinin de girdisi `IAudioMeterInformation::GetPeakValue`.
+//
+// Bu yol **core'dan geçmiyor** ve bilerek öyle: saniyede 30 örnek, tetik değil,
+// deadline'ı uzatmıyor, durumun parçası değil. Core'a sokulsa her örnek tam
+// `PlayerState`'i (kapak base64'ü dahil) WebView'e yeniden gönderirdi.
+// Yalnızca kutu ekrandayken çalışır; gizliyken tek örnek bile alınmaz.
+
+/// ~30 Hz. Kutu 2.5 sn duruyor → gösterim başına ~75 örnek.
+const METRE_PERIYODU: Duration = Duration::from_millis(33);
+
+pub enum MeterCmd {
+    /// Kutu ekrana geldi: uç noktaya bağlan ve örneklemeye başla.
+    Start,
+    /// Kutu gizlendi: bırak. Uç nokta da bırakılır, böylece bir sonraki
+    /// `Start` varsayılan cihaz değişmişse yenisine bağlanır.
+    Stop,
+}
+
+/// Ölçülen tepe değerini (0–1) dışarı veren geri çağrı. Tauri tipini adapter'a
+/// sokmamak için kapanış olarak alınıyor; kanala yazan taraf sürücü.
+pub fn spawn_meter(
+    sink: impl Fn(f32) + Send + 'static,
+) -> std::io::Result<SyncSender<MeterCmd>> {
+    let (tx, rx) = sync_channel::<MeterCmd>(4);
+    std::thread::Builder::new().name("meter".into()).spawn(move || {
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        }
+        let enumerator: IMMDeviceEnumerator =
+            match unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) } {
+                Ok(e) => e,
+                Err(e) => {
+                    eprintln!("[meter] enumerator yok: {e}");
+                    return;
+                }
+            };
+
+        let mut meter: Option<IAudioMeterInformation> = None;
+        loop {
+            // Çalışmıyorken süresiz bekle: gizliyken bu thread hiç uyanmıyor.
+            let cmd = if meter.is_some() {
+                match rx.recv_timeout(METRE_PERIYODU) {
+                    Ok(c) => Some(c),
+                    Err(RecvTimeoutError::Timeout) => None,
+                    Err(RecvTimeoutError::Disconnected) => return,
+                }
+            } else {
+                match rx.recv() {
+                    Ok(c) => Some(c),
+                    Err(_) => return,
+                }
+            };
+
+            match cmd {
+                Some(MeterCmd::Start) => {
+                    if meter.is_none() {
+                        meter = bind_meter(&enumerator);
+                    }
+                }
+                Some(MeterCmd::Stop) => meter = None,
+                // Zaman aşımı = bir örnekleme anı.
+                None => {
+                    let v = meter
+                        .as_ref()
+                        .and_then(|m| unsafe { m.GetPeakValue() }.ok())
+                        .unwrap_or(0.0);
+                    sink(v);
+                }
+            }
+        }
+    })?;
+    Ok(tx)
+}
+
+/// Her `Start`'ta yeniden çözülüyor. `IMMNotificationClient` kurmaya gerek
+/// bırakmıyor: cihaz değiştiyse bir sonraki gösterimde zaten yenisi bulunur.
+fn bind_meter(enumerator: &IMMDeviceEnumerator) -> Option<IAudioMeterInformation> {
+    let device = unsafe { enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia) }.ok()?;
+    unsafe { device.Activate(CLSCTX_ALL, None) }.ok()
 }

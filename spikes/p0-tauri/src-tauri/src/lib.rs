@@ -18,16 +18,26 @@
 //!
 //! Ortam değişkenleri:
 //!   P0_PROFILE = hide-short | hide-long | offscreen-short
-//!   P0_HIDE    = raw    -> ham ShowWindow(SW_HIDE/SW_SHOW)
-//!                tauri  -> Tauri'nin kendi window.hide()/show() yolu
+//!   P0_HIDE    = raw        -> ham ShowWindow(SW_HIDE/SW_SHOW)
+//!                tauri      -> Tauri'nin kendi window.hide()/show() yolu
+//!                suspend    -> raw + WebView2 controller `SetIsVisible(false)`
+//!                trysuspend -> suspend + `ICoreWebView2_3::TrySuspend()`
+//!
+//! Son iki yol P0'ın yan bulgusu için eklendi (P3): ham `SW_HIDE` WebView2'nin
+//! render döngüsünü durdurmuyordu (gizliyken 185 kare/sn). `idle_ticks` bu iki
+//! yolda ~0'a düşmeli; `screen_ms` ise uyanma bedelini ilk kez **gerçekten**
+//! ölçüyor, çünkü artık uyutulacak bir şey var.
 
-use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU8, AtomicUsize, Ordering};
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Mutex;
 use std::time::Duration;
 
 use tauri::{AppHandle, Manager};
 
+use webview2_com::Microsoft::Web::WebView2::Win32::{ICoreWebView2Controller, ICoreWebView2_3};
+use webview2_com::TrySuspendCompletedHandler;
+use windows::core::Interface;
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::Gdi::{GetDC, GetPixel, ReleaseDC};
 use windows::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
@@ -138,6 +148,71 @@ fn is_visible(raw: isize) -> bool {
     unsafe { IsWindowVisible(h(raw)).as_bool() }
 }
 
+// --- WebView2 controller ----------------------------------------------------
+//
+// `PlatformWebview::controller()` yalnızca `with_webview` kapanışının içinde
+// elde edilebiliyor ve o kapanış UI thread'inde çalışıyor. Ölçüm sürücüsü ise
+// ayrı bir thread; bu yüzden işaretçiyi bir kez yakalayıp saklıyoruz. COM
+// nesnesinin thread benzeşimi var, dolayısıyla **çağrılar yalnızca
+// `run_on_main_thread` içinden** yapılır.
+
+static CTRL: AtomicUsize = AtomicUsize::new(0);
+static WV3: AtomicUsize = AtomicUsize::new(0);
+
+/// Yakalarken bilerek bir AddRef sızdırıyoruz: spike süreç sonunda ölüyor,
+/// karşılığında işaretçinin ölçüm boyunca geçerli kalacağı garanti oluyor.
+fn capture_webview(win: &tauri::WebviewWindow) {
+    let _ = win.with_webview(|pw| {
+        let ctrl = pw.controller();
+        let raw = ctrl.as_raw();
+        std::mem::forget(ctrl);
+        CTRL.store(raw as usize, Ordering::Release);
+
+        // TrySuspend/Resume `ICoreWebView2_3` üzerinde; controller'da değil.
+        let wv3 = unsafe { ICoreWebView2Controller::from_raw_borrowed(&raw) }
+            .and_then(|c| unsafe { c.CoreWebView2() }.ok())
+            .and_then(|wv| wv.cast::<ICoreWebView2_3>().ok());
+        if let Some(wv3) = wv3 {
+            let r = wv3.as_raw();
+            std::mem::forget(wv3);
+            WV3.store(r as usize, Ordering::Release);
+        }
+    });
+}
+
+fn with_ctrl<R>(f: impl FnOnce(&ICoreWebView2Controller) -> R) -> Option<R> {
+    let raw = CTRL.load(Ordering::Acquire) as *mut core::ffi::c_void;
+    unsafe { ICoreWebView2Controller::from_raw_borrowed(&raw) }.map(f)
+}
+
+fn with_wv3<R>(f: impl FnOnce(&ICoreWebView2_3) -> R) -> Option<R> {
+    let raw = WV3.load(Ordering::Acquire) as *mut core::ffi::c_void;
+    unsafe { ICoreWebView2_3::from_raw_borrowed(&raw) }.map(f)
+}
+
+fn webview_set_visible(v: bool) {
+    with_ctrl(|c| unsafe { c.SetIsVisible(v) });
+}
+
+/// Asenkron ve `IsVisible == false` şart. Sonucu yalnızca teşhis için basıyoruz;
+/// askıya alınma bekleme süresi (en az 2 sn) içinde tamamlanıyor.
+fn webview_try_suspend() {
+    with_wv3(|wv| unsafe {
+        let handler = TrySuspendCompletedHandler::create(Box::new(|hr, ok| {
+            if hr.is_err() || !ok {
+                eprintln!("[p0] TrySuspend basarisiz: hr={hr:?} ok={ok}");
+            }
+            Ok(())
+        }));
+        let _ = wv.TrySuspend(&handler);
+    });
+}
+
+/// Senkron. `TrySuspend` tamamlanmamışsa da güvenli (no-op).
+fn webview_resume() {
+    with_wv3(|wv| unsafe { wv.Resume() });
+}
+
 // --- ekran sinyali (asıl ölçüt) ---------------------------------------------
 //
 // Çerçeveye ait hiçbir callback "pencere gerçekten boyandı mı?" sorusuna cevap
@@ -204,6 +279,35 @@ enum Mode {
 enum HideVia {
     Raw,
     Tauri,
+    /// `SW_HIDE` + controller `SetIsVisible(false)`.
+    Suspend,
+    /// Üsttekine ek olarak `TrySuspend()` — süreç belleği de bırakılır.
+    TrySuspend,
+}
+
+impl HideVia {
+    /// WebView2'ye dokunan yollar. `Raw`/`Tauri` yalnızca Win32 penceresini oynatır.
+    fn touches_webview(self) -> bool {
+        matches!(self, HideVia::Suspend | HideVia::TrySuspend)
+    }
+
+    fn csv_suffix(self) -> &'static str {
+        match self {
+            HideVia::Raw => "",
+            HideVia::Tauri => "-tauriapi",
+            HideVia::Suspend => "-suspend",
+            HideVia::TrySuspend => "-trysuspend",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            HideVia::Raw => "raw-win32",
+            HideVia::Tauri => "tauri-api",
+            HideVia::Suspend => "raw+SetIsVisible(false)",
+            HideVia::TrySuspend => "raw+SetIsVisible(false)+TrySuspend",
+        }
+    }
 }
 
 struct Profile {
@@ -262,6 +366,19 @@ fn drive(
         app.exit(1);
         return;
     }
+
+    // Controller yakalanamadıysa "suspend" koşusu sessizce ham SW_HIDE'a düşer
+    // ve ölçüm yanlış etiketle CSV'ye yazılır. Ölçmemek, yanlış ölçmekten iyi.
+    if via.touches_webview() {
+        let ctrl_ok = CTRL.load(Ordering::Acquire) != 0;
+        let wv3_ok = WV3.load(Ordering::Acquire) != 0;
+        println!("[p0] controller={ctrl_ok} ICoreWebView2_3={wv3_ok}");
+        if !ctrl_ok || (via == HideVia::TrySuspend && !wv3_ok) {
+            eprintln!("[p0] HATA: WebView2 arayuzleri yakalanamadi, cikiliyor");
+            app.exit(1);
+            return;
+        }
+    }
     std::thread::sleep(Duration::from_millis(1500));
 
     // Yoklama noktasını gerçek pencere dikdörtgeninden hesapla — DPI ölçeklemesi
@@ -300,7 +417,7 @@ fn drive(
         "[p0] profil={} mod={} gizleme={} tekrar={} bekleme={}ms (+{} isinma)",
         prof.name,
         if prof.mode == Mode::Hide { "SW_HIDE" } else { "offscreen" },
-        if via == HideVia::Raw { "raw-win32" } else { "tauri-api" },
+        via.label(),
         prof.reps,
         prof.idle_ms,
         WARMUP
@@ -325,8 +442,17 @@ fn drive(
                         let _ = w.hide();
                     }
                 }
-                (Mode::Hide, HideVia::Raw) => {
+                (Mode::Hide, _) => {
+                    // Önce Win32 penceresi: WebView'i görünmez yapmak boş bir
+                    // kare bastırabilir, o kare ekranda görünmesin.
                     let _ = ShowWindow(h(raw), SW_HIDE);
+                    if via.touches_webview() {
+                        webview_set_visible(false);
+                        if via == HideVia::TrySuspend {
+                            // `IsVisible == false` olduktan SONRA; aksi halde reddediliyor.
+                            webview_try_suspend();
+                        }
+                    }
                 }
             }
         });
@@ -366,7 +492,14 @@ fn drive(
                             let _ = w.show();
                         }
                     }
-                    (Mode::Hide, HideVia::Raw) => {
+                    (Mode::Hide, _) => {
+                        // Uyandırma bedeli ölçümün İÇİNDE: t0 yukarıda alındı.
+                        if via.touches_webview() {
+                            if via == HideVia::TrySuspend {
+                                webview_resume();
+                            }
+                            webview_set_visible(true);
+                        }
                         let _ = ShowWindow(h(raw), SW_SHOW);
                     }
                 }
@@ -431,10 +564,7 @@ fn write_csv(profile_name: &str, via: HideVia, rows: &[Row]) {
         eprintln!("[p0] measurements klasoru acilamadi: {e}");
         return;
     }
-    let suffix = match via {
-        HideVia::Raw => "",
-        HideVia::Tauri => "-tauriapi",
-    };
+    let suffix = via.csv_suffix();
     let path = dir.join(format!("tauri-{profile_name}{suffix}.csv"));
     let mut out = String::from("iter,screen_ms,raf1_ms,raf2_ms,idle_ticks,visible_while_idle\n");
     for r in rows {
@@ -461,6 +591,8 @@ pub fn run() {
     let prof = profile(&std::env::var("P0_PROFILE").unwrap_or_else(|_| "hide-short".into()));
     let via = match std::env::var("P0_HIDE").unwrap_or_else(|_| "raw".into()).as_str() {
         "tauri" => HideVia::Tauri,
+        "suspend" => HideVia::Suspend,
+        "trysuspend" => HideVia::TrySuspend,
         _ => HideVia::Raw,
     };
 
@@ -484,6 +616,12 @@ pub fn run() {
         .setup(move |app| {
             let win = app.get_webview_window("main").expect("main penceresi yok");
             let raw = win.hwnd()?.0 as isize;
+            if via.touches_webview() {
+                // Kuyruğa giriyor, UI thread'inde çalışıyor. `drive` zaten
+                // WebView'in `ready` sinyalini bekliyor; o gelene kadar bu
+                // kapanış çoktan koşmuş olur.
+                capture_webview(&win);
+            }
             let handle = app.handle().clone();
             std::thread::spawn(move || drive(handle, raw, prof, via, ready_rx, result_rx));
             Ok(())

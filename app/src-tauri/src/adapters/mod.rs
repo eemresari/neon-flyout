@@ -6,4 +6,5 @@
 
 pub mod audio;
 pub mod smtc;
+pub mod webview;
 pub mod window;

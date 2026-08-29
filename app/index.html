@@ -3,21 +3,56 @@
   <head>
     <meta charset="UTF-8" />
     <title>neon-flyout</title>
-    <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <!--
-      P2 iskeleti. Tasarım (design/flyout.css + temalar) P3'te bağlanacak;
-      buradaki kutu yalnızca tetik ve zamanlayıcı doğru mu diye bakmak için.
+      DOM sözleşmesi `docs/DESIGN.md`'den birebir; referans uygulaması
+      `design/preview.html`'in JS'i. İki kutu da DOM'da durur, biri `hidden`.
+      Tema kullanmadığı elemanı `design/flyout.css` `display:none` ile kapatır —
+      bu yüzden burada tema ayrımı yok: `data-theme` tek attribute.
     -->
-    <div id="fly" class="fly" data-kind="media" data-state="paused" data-phase="leave">
-      <div class="fly__head">
-        <span id="state">—</span>
-        <span id="source"></span>
+    <div id="media" class="fly fly--media" data-theme="cyber" data-state="playing" hidden>
+      <div class="fly__plate">
+        <div class="fly__art"><img id="m-art" alt="" hidden /></div>
+        <div class="fly__ring">
+          <span class="fly__glyph" id="m-glyph"></span>
+          <span class="fly__pct" id="m-pct"></span>
+        </div>
+        <div class="fly__body">
+          <div class="fly__head">
+            <span class="fly__dot"></span>
+            <span class="fly__state" id="m-state"></span>
+            <span class="fly__source" id="m-source"></span>
+          </div>
+          <div class="fly__title" id="m-title"></div>
+          <div class="fly__artist" id="m-artist"></div>
+          <div class="fly__progress">
+            <span class="fly__time" id="m-elapsed"></span>
+            <div class="fly__track"><div class="fly__fill"></div><div class="fly__tip"></div></div>
+            <span class="fly__time" id="m-total"></span>
+          </div>
+          <div class="fly__spectrum" id="m-spectrum"></div>
+        </div>
+        <div class="fly__meter" id="m-meter"></div>
+        <div class="fly__deco"></div>
       </div>
-      <div id="title" class="fly__title">—</div>
-      <div id="sub" class="fly__sub"></div>
     </div>
+
+    <div id="volume" class="fly fly--volume" data-theme="cyber" data-state="volume" hidden>
+      <div class="fly__plate">
+        <div class="fly__icon" id="v-icon"></div>
+        <div class="fly__body">
+          <div class="fly__head">
+            <span class="fly__state" id="v-state"></span>
+            <span class="fly__source" id="v-source"></span>
+          </div>
+          <div class="fly__ticks" id="v-ticks"></div>
+        </div>
+        <div class="fly__num"><span id="v-pct"></span><sup>%</sup></div>
+        <div class="fly__deco"></div>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

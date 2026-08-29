@@ -17,9 +17,15 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# SMTC kapak gorseli WinRT'den ham bayt geliyor; WebView'e data URL olarak gidiyor.
+base64 = "0.22"
 
 # Windows API'leri YALNIZCA src/adapters/* icinde kullanilir (docs/ARCHITECTURE.md).
 [target.'cfg(windows)'.dependencies]
+# WebView2 controller'i: kutu gizliyken render'i durdurmak icin (docs/P3-SONUC.md).
+# Surum tauri'nin kullandigi webview2-com ile AYNI olmak zorunda, yoksa
+# `PlatformWebview::controller()`'in dondugu tip uyusmaz.
+webview2-com = "0.38"
 # `#[implement]` makrosu urettigi kodda `windows_core::` yollarini kullaniyor;
 # crate dogrudan bagimlilik olarak bulunmali (windows 0.61.3 ile ayni surum).
 windows-core = "0.61"
@@ -27,6 +33,7 @@ windows = { version = "0.61", features = [
   "Foundation",
   "Media",
   "Media_Control",
+  "Storage_Streams",
   "Win32_Devices_FunctionDiscovery",
   "Win32_Foundation",
   "Win32_Graphics_Gdi",

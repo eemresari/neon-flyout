@@ -44,6 +44,10 @@ verir. WASAPI ve WinRT farklı thread modelleri ister; her adapter kendi
 - `SmtcAdapter` — medya oturumu
 - `AudioAdapter` — ses seviyesi, mute, peak
 - `WindowAdapter` — pencere stilleri, z-order, göster/gizle
+- `WebviewAdapter` — WebView2 controller'ın `IsVisible`'ı; kutu gizliyken render
+  döngüsünü durdurur (`SW_HIDE` tek başına durdurmuyor, `docs/P3-SONUC.md` § 5).
+  Tek istisna: bu adapter kendi thread'inde değil, **UI thread'inde** çağrılır —
+  COM nesnesinin thread benzeşimi var.
 - `NativeFlyoutSuppressor` — Windows'un kendi kutusunu gizler (izole, kırılgan, opsiyonel)
 
 ### L1 — Windows platformu

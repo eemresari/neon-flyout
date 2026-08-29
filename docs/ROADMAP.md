@@ -205,7 +205,23 @@ opaklık sıfırlamak değil. Pencere bir kez oluşturulur, bir daha yok edilmez
 
 ---
 
-## P3 — Arayüz  ← **SIRADAKİ**
+## P3 — Arayüz ✅ TAMAMLANDI (2026-08-28)
+
+**Tasarım bağlandı, sekiz durum uygulamada birebir çıkıyor, WebView2 gizliyken
+render'ı duruyor.** Kararlar, ölçüm tablosu ve tuzaklar: **`docs/P3-SONUC.md`**.
+
+- **P2'den devredilen iki senaryo doğrulandı:** ses tuşuna arka arkaya basma →
+  tek kutu; Spotify penceresinden fareyle durdurma → kutu çıkıyor. Parça geçişi
+  ve sekme ↔ Spotify geçişi de elle teyit edildi.
+- **P0'ın açık bıraktığı ölçüm tekrarlandı:** `SetIsVisible(false)` ile gizliyken
+  üretilen kare **9 235 → 0**, uyanma bedeli p95 **12.1 → 11.6 ms**. Uyanma
+  cezası **çıkmadı**. `TrySuspend` bilerek kullanılmadı (JS'i de donduruyor,
+  içerik-önce-pencere sırasını bozardı) — gerekçe `docs/P3-SONUC.md` § 5.
+- **Hâlâ açık:** kalıcı tema/köşe/monitör ayarı **P5'e** (ayar dosyası); kulaklık
+  takıp çıkarma ile cihaz değişimi doğrulaması yapılmadı.
+
+<details>
+<summary>Özgün P3 planı</summary>
 
 `design/` altındaki CSS'i frontend'e bağla. Backend hazır: tek kanal (`flyout`),
 tek payload (`core::engine::Frame`) — alan alan dökümü `docs/P2-SONUC.md` § 2'de,
@@ -235,9 +251,11 @@ sonra bağlanır.
 **Çıkış:** `design/preview.html`'deki sekiz durumun sekizi de uygulamada birebir aynı
 görünüyor.
 
+</details>
+
 ---
 
-## P4 — Native flyout bastırma
+## P4 — Native flyout bastırma  ← **SIRADAKİ**
 
 Ayrı ve en sonda, çünkü uygulama bu olmadan da kullanılabilir olmalı.
 

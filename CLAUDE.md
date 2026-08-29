@@ -19,8 +19,10 @@ Hedef makine: Windows 11 x64. Minimum: Windows 10 1809 (build 17763).
 4. **P2 tamamlandı (2026-08-28): uygulama `app/` altında ayakta.** Katmanlar,
    core → WebView sözleşmesi, kararlar ve tuzaklar `docs/P2-SONUC.md`'de —
    **DOM yazmadan önce § 2'yi oku.**
-5. **`docs/ROADMAP.md` → P3'ten (arayüz) başla**, sonra sırayla devam. P3'ün ilk
-   işi P2'den devredilen iki manuel senaryoyu doğrulamak; tasarım ondan sonra.
+5. **P3 tamamlandı (2026-08-28): tasarım bağlı, sekiz durum uygulamada çıkıyor,
+   WebView2 gizliyken render'ı duruyor.** DOM'a veya `design/`'a dokunmadan önce
+   `docs/P3-SONUC.md`'yi oku.
+6. **`docs/ROADMAP.md` → P4'ten (native flyout bastırma) başla**, sonra P5.
 
 `spikes/` altındaki üç proje P0 ve P1'in ölçüm düzeneğidir — **atılacak koddur**,
 uygulamanın iskeleti değil. Uygulama `app/` altında ayrı duruyor.
@@ -94,10 +96,8 @@ Bunlar bilerek açık bırakıldı. Herhangi birini "muhtemelen şöyledir" diye
    sürüme değişiyor (`XamlExplorerHostIslandWindow`, `NativeHWNDHost` isimleri geçiyor
    ama hangisinin doğru olduğu doğrulanmadı). Kaynak: FluentFlyout ve ModernFlyouts
    depolarındaki güncel handler kodu.
-2. **WebView2 gizliyken render'ı durdurulunca uyanma bedeli ne olur?** P0'da ölçülen
-   11 ms, render döngüsü **sıcakken** alındı — `SW_HIDE` WebView2'yi durdurmuyor (bkz.
-   aşağıdaki bulgu). `IsVisible=false` / `TrySuspend` uygulandığında gerçek uyanma bedeli
-   ortaya çıkacak ve **ölçüm tekrarlanmalı.**
+2. **AudioAdapter'ın cihaz değişimi yolu** (`IMMNotificationClient` → yeniden
+   bağlanma) gerçek donanımla hiç denenmedi. Kulaklık takıp çıkararak doğrula.
 
 ## P0'da cevaplanan varsayımlar
 
@@ -121,12 +121,14 @@ geliyor) ve tek bir parça geçişi **811 ms'ye yayılan 8 olay** üretiyor. Dol
 de "kutuyu aç" kararını değil "animasyonu baştan oynatma" kararını yönetmeli.
 Ayrıntı ve diğer altı madde: `docs/P1-SONUC.md` § 8.
 
-**Yan bulgu — mimariyi ilgilendiriyor:** `SW_HIDE` pencereyi Win32/DWM'den gizliyor ama
-**WebView2'nin render döngüsünü durdurmuyor** — gizliyken de saniyede 185 kare üretiyor
-(60 sn'de 11 098 kare). Tauri'nin `window.hide()` yolu da durdurmuyor. Direct Flip
-korunuyor ama GPU boşuna çalışıyor; kutu günün çoğunu gizli geçireceği için pil ömrü
-açısından çözülmeli — **P3'e alındı**, çünkü gerçek UI olmadan uyanma bedeli anlamlı
-biçimde yeniden ölçülemez.
+## P3'te cevaplanan varsayımlar
+
+- ~~WebView2 gizliyken render'ı durdurulunca uyanma bedeli ne olur?~~ **Bedel yok.**
+  `ICoreWebView2Controller::SetIsVisible(false)` ile gizliyken üretilen kare
+  **9 235 → 0**, uyanma p95 **12.1 → 11.6 ms** (60 sn derin beklemede 11.8).
+  Ham `SW_HIDE`'ın ölçtüğü "sıcak döngü" korkusu çıkmadı. `TrySuspend` de aynı
+  gecikmeyi veriyor ama **kullanılmadı**: JS'i donduruyor, içerik-önce-pencere
+  sırasını bozardı. Ayrıntı: `docs/P3-SONUC.md` § 5.
 
 ---
 
@@ -148,9 +150,11 @@ docs/DESIGN.md            DOM sözleşmesi, tema sistemi, token tablosu
 docs/P0-SONUC.md          gecikme kapısı ölçümü, yöntem ve karar
 docs/P1-SONUC.md          SMTC ölçümü: olay akışının gerçek şekli, P2'ye devredilenler
 docs/P2-SONUC.md          uygulama iskeleti, core→WebView sözleşmesi, tuzaklar
+docs/P3-SONUC.md          tasarımın bağlanması, kapak/metre, WebView2 uyutma ölçümü
 app/                      UYGULAMA (P2'den itibaren) — vanilla+TS frontend, Tauri v2
 app/src-tauri/src/core/     Windows tipi bilmeyen, test edilebilir katman
-app/src-tauri/src/adapters/ SMTC, WASAPI, pencere — unsafe/COM yalnızca burada
+app/src-tauri/src/adapters/ SMTC, WASAPI, WebView2, pencere — unsafe/COM yalnızca burada
+design/fonts.css          yerel @font-face'ler (offline); design/fonts/*.woff2
 spikes/p0-tauri           P0 ölçüm düzeneği — Tauri (atılacak kod)
 spikes/p0-wpf             P0 ölçüm düzeneği — WPF karşılaştırması (atılacak kod)
 spikes/p1-smtc            P1 ölçüm düzeneği — SMTC konsol aracı (atılacak kod)

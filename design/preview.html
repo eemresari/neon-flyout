@@ -3,9 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Flyout — tema önizlemesi</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Rajdhani:wght@600;700&family=Space+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="fonts.css">
 <link rel="stylesheet" href="flyout.css">
 <link rel="stylesheet" href="themes/cyber.css">
 <link rel="stylesheet" href="themes/neon.css">
@@ -81,7 +79,7 @@ function mediaFlyout(theme, state) {
     <div class="fly__plate">
       <div class="fly__art"></div>
       <div class="fly__ring" style="--progress:${TRACK.progress}">
-        <span class="fly__glyph" style="color:var(--accent)">${playing ? GLYPH.play : GLYPH.pause}</span>
+        <span class="fly__glyph">${playing ? GLYPH.play : GLYPH.pause}</span>
         <span class="fly__pct">${TRACK.progress}%</span>
       </div>
       <div class="fly__body">
@@ -120,7 +118,7 @@ function volumeFlyout(theme, state) {
 
   el.innerHTML = `
     <div class="fly__plate">
-      <div class="fly__icon" style="color:var(--accent)">
+      <div class="fly__icon">
         ${theme === "neon"
           ? `<div class="fly__ring" style="--progress:${muted ? 0 : VOLUME.level}"><span class="fly__glyph">${muted ? GLYPH.mute : GLYPH.vol}</span></div>`
           : (muted ? GLYPH.mute : GLYPH.vol)}

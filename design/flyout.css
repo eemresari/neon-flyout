@@ -203,6 +203,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--accent);
 }
 
 .fly__pct {
@@ -271,4 +272,6 @@
   margin-left: 1px;
 }
 
-.fly__icon { display: flex; align-items: center; justify-content: center; }
+/* Renk token'dan gelir; durum override'i --accent'i degistirdigi icin
+   duraklatildi/sessiz halinde ikon da kendiliginden alert rengine doner.   */
+.fly__icon { display: flex; align-items: center; justify-content: center; color: var(--accent); }

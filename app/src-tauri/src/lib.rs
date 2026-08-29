@@ -9,15 +9,26 @@
 mod adapters;
 mod core;
 
-use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
+use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, SyncSender};
 use std::time::{Duration, Instant};
 
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::adapters::audio::MeterCmd;
 use crate::core::{DomainEvent, Effect, Engine, EngineConfig};
 
-/// WebView'in dinlediği tek kanal.
+/// Durumun aktığı kanal: her kare tam `PlayerState` taşır.
 const KANAL: &str = "flyout";
+/// Tepe metresi ayrı kanalda ve core'dan geçmiyor — saniyede 30 örnek, tetik
+/// değil, durumun parçası değil. `KANAL`'a konsa her örnek kapak base64'ünü de
+/// yeniden gönderirdi. Yalnızca kutu ekrandayken akar.
+const KANAL_TEPE: &str = "peak";
+
+#[derive(Clone, Copy, Serialize)]
+struct Tepe {
+    peak: f32,
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -31,14 +42,22 @@ pub fn run() {
             let hwnd = win.hwnd()?.0 as isize;
             adapters::window::apply_styles(hwnd);
             adapters::window::place_top_right(hwnd);
+            // Gizliyken WebView2'nin render dongusunu durdurur; `SW_HIDE` tek
+            // basina durdurmuyor (`docs/P3-SONUC.md`).
+            adapters::webview::capture(&win);
 
             adapters::smtc::spawn(tx.clone())?;
             adapters::audio::spawn(tx.clone())?;
 
+            let sink = app.handle().clone();
+            let meter = adapters::audio::spawn_meter(move |peak| {
+                let _ = sink.emit(KANAL_TEPE, Tepe { peak });
+            })?;
+
             let handle = app.handle().clone();
             std::thread::Builder::new()
                 .name("core".into())
-                .spawn(move || core_loop(handle, hwnd, rx))?;
+                .spawn(move || core_loop(handle, hwnd, meter, rx))?;
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -48,7 +67,12 @@ pub fn run() {
 /// Tek yazıcı görev. Ayrı bir zamanlayıcı thread'i yok: deadline'a kalan süre
 /// `recv_timeout`'un beklemesi olarak geçiyor, böylece üst üste binen
 /// zamanlayıcı ihtimali ortadan kalkıyor.
-fn core_loop(app: AppHandle, hwnd: isize, rx: Receiver<DomainEvent>) {
+fn core_loop(
+    app: AppHandle,
+    hwnd: isize,
+    meter: SyncSender<MeterCmd>,
+    rx: Receiver<DomainEvent>,
+) {
     let start = Instant::now();
     let now = move || start.elapsed().as_millis() as u64;
     let mut engine = Engine::new(EngineConfig::default());
@@ -68,22 +92,35 @@ fn core_loop(app: AppHandle, hwnd: isize, rx: Receiver<DomainEvent>) {
         };
 
         for effect in effects {
-            apply(&app, hwnd, effect);
+            apply(&app, hwnd, &meter, effect);
         }
     }
 }
 
-fn apply(app: &AppHandle, hwnd: isize, effect: Effect) {
+fn apply(app: &AppHandle, hwnd: isize, meter: &SyncSender<MeterCmd>, effect: Effect) {
     match effect {
         // İçerik pencereden ÖNCE gider: ilk boyanan kare doğru içeriği taşısın.
         Effect::Emit(frame) => {
             let _ = app.emit(KANAL, frame);
         }
         Effect::Show => {
-            let _ = app.run_on_main_thread(move || adapters::window::show(hwnd));
+            let _ = app.run_on_main_thread(move || {
+                // Once WebView uyanir, sonra pencere gorunur: ters sirada ilk
+                // kare bos cikabilir.
+                adapters::webview::set_visible(true);
+                adapters::window::show(hwnd);
+            });
+            // Metre kutunun ömrüyle birebir: gizliyken tek örnek bile alınmıyor.
+            let _ = meter.try_send(MeterCmd::Start);
         }
         Effect::Hide => {
-            let _ = app.run_on_main_thread(move || adapters::window::hide(hwnd));
+            let _ = app.run_on_main_thread(move || {
+                // Once pencere gizlenir: WebView'i gorunmez yapmak bos bir kare
+                // bastirabilir, o kare ekranda gorunmesin.
+                adapters::window::hide(hwnd);
+                adapters::webview::set_visible(false);
+            });
+            let _ = meter.try_send(MeterCmd::Stop);
         }
     }
 }

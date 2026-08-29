@@ -14,14 +14,18 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use windows::core::{Ref, Result as WinResult};
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine as _;
+use windows::core::{Interface, Ref, Result as WinResult};
 use windows::Foundation::TypedEventHandler;
 use windows::Media::Control::{
     CurrentSessionChangedEventArgs, GlobalSystemMediaTransportControlsSession as Session,
     GlobalSystemMediaTransportControlsSessionManager as SessionManager,
+    GlobalSystemMediaTransportControlsSessionMediaProperties as MediaProps,
     GlobalSystemMediaTransportControlsSessionPlaybackStatus as WinStatus,
     MediaPropertiesChangedEventArgs, PlaybackInfoChangedEventArgs,
 };
+use windows::Storage::Streams::{DataReader, IRandomAccessStream};
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
 use crate::adapters::window;
@@ -169,15 +173,19 @@ fn snapshot(session: &Session) -> Option<MediaSnapshot> {
         .map(|s| s.to_string())
         .unwrap_or_default();
 
-    let track = session
-        .TryGetMediaPropertiesAsync()
-        .and_then(|op| op.get())
+    let props = session.TryGetMediaPropertiesAsync().and_then(|op| op.get()).ok();
+    let track = props
+        .as_ref()
         .map(|p| Track {
             title: p.Title().map(|s| s.to_string()).unwrap_or_default(),
             artist: p.Artist().map(|s| s.to_string()).unwrap_or_default(),
             album: p.AlbumTitle().map(|s| s.to_string()).unwrap_or_default(),
         })
         .unwrap_or_default();
+
+    // Kapak her olayda değil, parça başına bir kez çözülüyor; olayların çoğu kutu
+    // gizliyken geldiği için açılış anında görsel çoktan hazır oluyor.
+    let art = props.as_ref().and_then(|p| art_cached(art_key(&source_id, &track), p));
 
     Some(MediaSnapshot {
         source_is_foreground: window::foreground_matches(&source_id),
@@ -186,7 +194,73 @@ fn snapshot(session: &Session) -> Option<MediaSnapshot> {
         state,
         position: position(session),
         controls,
+        art,
     })
+}
+
+/// Kapak cache'i. Adapter'ın **oynatıcı durumu tutmama** kuralını bozmuyor: bu
+/// durum değil, saf bir çözme (decode) sonucu ve anahtarı girdisinin kendisi.
+/// Tek kayıt yetiyor — aynı anda tek parça çalıyor.
+type ArtKey = (String, String, String, String);
+static ART_CACHE: Mutex<Option<(ArtKey, Option<String>)>> = Mutex::new(None);
+
+/// Kaynak da anahtarda: aynı başlık iki oturumda farklı görsel taşıyabilir
+/// (Spotify ↔ tarayıcı sekmesi).
+fn art_key(source_id: &str, t: &Track) -> ArtKey {
+    (source_id.to_string(), t.title.clone(), t.artist.clone(), t.album.clone())
+}
+
+fn art_cached(key: ArtKey, props: &MediaProps) -> Option<String> {
+    if let Ok(g) = ART_CACHE.lock() {
+        if let Some((k, v)) = g.as_ref() {
+            if *k == key {
+                return v.clone();
+            }
+        }
+    }
+    // "Kapak yok" sonucu da cache'lenir; yoksa her olayda WinRT'ye boşuna gidilir.
+    let art = thumbnail(props);
+    if let Ok(mut g) = ART_CACHE.lock() {
+        *g = Some((key, art.clone()));
+    }
+    art
+}
+
+/// Kapaksız oturumda `Thumbnail()` ya hata veriyor ya boş akış dönüyor; ikisi de
+/// `None`. Üst sınır, bozuk bir kaynağın IPC'yi tıkamaması için.
+const MAX_ART: u64 = 512 * 1024;
+
+fn thumbnail(props: &MediaProps) -> Option<String> {
+    let stream: IRandomAccessStream =
+        props.Thumbnail().ok()?.OpenReadAsync().ok()?.get().ok()?.cast().ok()?;
+    let size = stream.Size().ok()?;
+    if size == 0 || size > MAX_ART {
+        return None;
+    }
+    let reader = DataReader::CreateDataReader(&stream.GetInputStreamAt(0).ok()?).ok()?;
+    reader.LoadAsync(size as u32).ok()?.get().ok()?;
+    let mut buf = vec![0u8; size as usize];
+    reader.ReadBytes(&mut buf).ok()?;
+    Some(format!("data:{};base64,{}", mime(&buf), BASE64.encode(&buf)))
+}
+
+/// `IRandomAccessStreamWithContentType::ContentType` bazı kaynaklarda boş
+/// geliyor; sihirli baytlar daha güvenilir.
+fn mime(b: &[u8]) -> &'static str {
+    const PNG: [u8; 4] = [0x89, 0x50, 0x4E, 0x47];
+    if b.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        "image/jpeg"
+    } else if b.starts_with(&PNG) {
+        "image/png"
+    } else if b.starts_with(b"GIF8") {
+        "image/gif"
+    } else if b.len() >= 12 && &b[0..4] == b"RIFF" && &b[8..12] == b"WEBP" {
+        "image/webp"
+    } else if b.starts_with(b"BM") {
+        "image/bmp"
+    } else {
+        "application/octet-stream"
+    }
 }
 
 /// `LastUpdatedTime == 0` → pozisyon bilinmiyor. Yoksa yaş 425 yıl çıkıyor ve
