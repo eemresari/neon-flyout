@@ -86,6 +86,8 @@ pub fn run() {
                 eprintln!("[native_flyout] Windows'un flyout'u bastirildi");
             }
 
+            adapters::tray::init(app.handle(), tx.clone())?;
+
             adapters::smtc::spawn(tx.clone())?;
             adapters::audio::spawn(tx.clone())?;
 

@@ -9,5 +9,6 @@ pub mod autostart;
 pub mod config_file;
 pub mod native_flyout;
 pub mod smtc;
+pub mod tray;
 pub mod webview;
 pub mod window;

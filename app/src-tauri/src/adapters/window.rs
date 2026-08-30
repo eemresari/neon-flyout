@@ -22,8 +22,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SWP_NOSIZE, SW_HIDE, SW_SHOWNOACTIVATE, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
 
-use crate::core::config::{Corner, MonitorPick};
 use crate::core::place::{position, WorkArea};
+use crate::core::{Corner, MonitorPick};
 
 /// Ekran kenarına bırakılan boşluk (fiziksel piksel). Köşe hesabı
 /// `core/place.rs`'te, testli.
