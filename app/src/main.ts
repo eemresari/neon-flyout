@@ -8,6 +8,7 @@ import "../../design/themes/neon.css";
 import "./styles.css";
 
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 
 // --- core → WebView sözleşmesi (`docs/P2-SONUC.md` § 2) ---------------------
 
@@ -50,9 +51,14 @@ interface Peak {
   peak: number;
 }
 
+/** Ayarın WebView'i ilgilendiren kısmı — `lib.rs` → `UiConfig`. */
+interface UiConfig {
+  theme: Theme;
+}
+
 // --- sabitler ---------------------------------------------------------------
 
-/** Ayar dosyası P5'te geliyor; şimdilik sabit. Canlı denemek için `__tema()`. */
+/** Backend `ayarlar` komutu yanıtlayana kadarki ilk boyama. Canlı deneme: `__tema()`. */
 const VARSAYILAN_TEMA: Theme = "cyber";
 
 /** `design/flyout.css` → `.fly__meter` 16 segment, `.fly__spectrum` 24 çubuk. */
@@ -292,7 +298,17 @@ function tepeYaz(peak: number) {
 
 // --- bağlan -----------------------------------------------------------------
 
+// Temayı önce senkron uygula: WebView backend'den önce boyayabilir, kutu temasız
+// çıkmasın. Ayar gelince üstüne yazılır.
 temaUygula(VARSAYILAN_TEMA);
+
+// Emit beklenmiyor — WebView emit'ten sonra yüklenirse temayı kaçırırdı (P3'te
+// `Frame` için aynısı yaşandı). Init'te ayarı kendimiz çekiyoruz.
+invoke<UiConfig>("ayarlar")
+  .then((c) => temaUygula(c.theme))
+  .catch(() => {});
+
+listen<UiConfig>("config", (e) => temaUygula(e.payload.theme));
 listen<Frame>("flyout", (e) => render(e.payload));
 listen<Peak>("peak", (e) => tepeYaz(e.payload.peak));
 

@@ -10,13 +10,14 @@ mod adapters;
 mod core;
 
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, SyncSender};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::adapters::audio::MeterCmd;
-use crate::core::{DomainEvent, Effect, Engine, EngineConfig};
+use crate::core::{Config, DomainEvent, Effect, Engine, EngineConfig, Theme};
 
 /// Durumun aktığı kanal: her kare tam `PlayerState` taşır.
 const KANAL: &str = "flyout";
@@ -24,10 +25,31 @@ const KANAL: &str = "flyout";
 /// değil, durumun parçası değil. `KANAL`'a konsa her örnek kapak base64'ünü de
 /// yeniden gönderirdi. Yalnızca kutu ekrandayken akar.
 const KANAL_TEPE: &str = "peak";
+/// Ayarın WebView'i ilgilendiren kısmı. Köşe, süre ve kurallar frontend'e hiç
+/// gitmiyor — onlar backend'in işi.
+const KANAL_AYAR: &str = "config";
 
 #[derive(Clone, Copy, Serialize)]
 struct Tepe {
     peak: f32,
+}
+
+#[derive(Clone, Copy, Serialize)]
+pub struct UiConfig {
+    pub theme: Theme,
+}
+
+/// Ayarın yetkili kopyası. Tepsi menüsü ve dosya yükleme burayı değiştirir,
+/// sonra üç tüketiciye **iter** — kimse buradan sürekli okumaz.
+pub struct SharedConfig(pub Mutex<Config>);
+
+/// Frontend init'te ayarı **kendisi çeker**; `KANAL_AYAR` emit'i yalnızca sonraki
+/// değişiklikler için. Emit'i beklemek WebView geç yüklenirse temayı kaçırırdı
+/// (P3'te `Frame` için aynısı yaşandı).
+#[tauri::command]
+fn ayarlar(state: tauri::State<'_, SharedConfig>) -> UiConfig {
+    let cfg = state.0.lock().expect("config mutex zehirli");
+    UiConfig { theme: cfg.theme }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -35,11 +57,22 @@ pub fn run() {
     let (tx, rx) = channel::<DomainEvent>();
 
     tauri::Builder::default()
+        .manage(SharedConfig(Mutex::new(adapters::config_file::load())))
+        .invoke_handler(tauri::generate_handler![ayarlar])
         .setup(move |app| {
             let win = app.get_webview_window("main").expect("main penceresi yok");
             // Pencere açılışta bir kez kurulur ve bir daha yok edilmez; gösterme
             // ve gizleme yalnızca ShowWindow (gecikme bütçesi bunu gerektiriyor).
             let hwnd = win.hwnd()?.0 as isize;
+
+            // Köşe tercihi pencere ilk kez konumlanmadan önce bilinmeli.
+            let cfg = *app
+                .state::<SharedConfig>()
+                .0
+                .lock()
+                .expect("config mutex zehirli");
+            adapters::window::set_placement(cfg.corner, cfg.monitor);
+
             adapters::window::apply_styles(hwnd);
             adapters::window::place(hwnd);
             // Gizliyken WebView2'nin render dongusunu durdurur; `SW_HIDE` tek
@@ -62,9 +95,10 @@ pub fn run() {
             })?;
 
             let handle = app.handle().clone();
+            let ilk = cfg.engine();
             std::thread::Builder::new()
                 .name("core".into())
-                .spawn(move || core_loop(handle, hwnd, meter, rx))?;
+                .spawn(move || core_loop(handle, hwnd, meter, rx, ilk))?;
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -81,10 +115,16 @@ pub fn run() {
 /// Tek yazıcı görev. Ayrı bir zamanlayıcı thread'i yok: deadline'a kalan süre
 /// `recv_timeout`'un beklemesi olarak geçiyor, böylece üst üste binen
 /// zamanlayıcı ihtimali ortadan kalkıyor.
-fn core_loop(app: AppHandle, hwnd: isize, meter: SyncSender<MeterCmd>, rx: Receiver<DomainEvent>) {
+fn core_loop(
+    app: AppHandle,
+    hwnd: isize,
+    meter: SyncSender<MeterCmd>,
+    rx: Receiver<DomainEvent>,
+    cfg: EngineConfig,
+) {
     let start = Instant::now();
     let now = move || start.elapsed().as_millis() as u64;
-    let mut engine = Engine::new(EngineConfig::default());
+    let mut engine = Engine::new(cfg);
 
     loop {
         let effects = match engine.next_timeout(now()) {
