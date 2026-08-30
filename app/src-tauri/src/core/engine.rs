@@ -43,7 +43,7 @@ pub enum Effect {
     Hide,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EngineConfig {
     pub show_ms: u64,
     pub fade_ms: u64,

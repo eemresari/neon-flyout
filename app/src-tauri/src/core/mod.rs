@@ -7,11 +7,13 @@
 //! geçen milisaniye) parametresi alır. Böylece 2.5 saniyelik deadline'ı test etmek
 //! için gerçekten 2.5 saniye beklemek gerekmiyor.
 
+pub mod config;
 pub mod engine;
 pub mod event;
 pub mod model;
 pub mod rules;
 pub mod visibility;
 
+pub use config::{Config, Corner, MonitorPick, Theme};
 pub use engine::{Effect, Engine, EngineConfig};
 pub use event::DomainEvent;

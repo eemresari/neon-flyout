@@ -36,7 +36,7 @@ pub enum DropReason {
     SessionOnly,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RuleConfig {
     /// 4. kural açık mı? Varsayılan **kapalı**: kaynak eşleştirmesi AUMID ↔ süreç
     /// adı üzerinden sezgisel yapılıyor, yanlış pozitifte kutu hiç çıkmaz.
