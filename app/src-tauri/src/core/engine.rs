@@ -103,7 +103,21 @@ impl Engine {
         self.vis.next_timeout(now_ms)
     }
 
+    /// Yeni ayar. Süreler bir sonraki tetikten itibaren geçerli; gürültü
+    /// kurallarının görülmüşlük geçmişi korunur.
+    pub fn reconfigure(&mut self, cfg: EngineConfig) {
+        self.rules.reconfigure(cfg.rules);
+        self.vis
+            .reconfigure(cfg.show_ms, cfg.fade_ms, cfg.coalesce_ms);
+    }
+
     pub fn handle(&mut self, ev: DomainEvent, now_ms: u64) -> Vec<Effect> {
+        // Ayar değişimi durumu güncellemez, kural işletmez, efekt üretmez.
+        if let DomainEvent::ConfigChanged(cfg) = ev {
+            self.reconfigure(cfg);
+            return Vec::new();
+        }
+
         let changed = self.merge(&ev);
         let verdict = self.rules.judge(&ev);
         let ev_kind = kind_of(&ev);
@@ -161,6 +175,8 @@ impl Engine {
             // Bu yüzden oturum değişimi duruma dokunmaz.
             DomainEvent::SessionSwitched { .. } => {}
             DomainEvent::SessionGone => self.state.media = None,
+            // `handle` erken döndüğü için buraya gelinmez.
+            DomainEvent::ConfigChanged(_) => {}
         }
         before != self.state
     }
@@ -184,6 +200,7 @@ fn kind_of(ev: &DomainEvent) -> Option<FlyoutKind> {
         DomainEvent::Media(_) => Some(FlyoutKind::Media),
         DomainEvent::Volume(_) => Some(FlyoutKind::Volume),
         DomainEvent::SessionSwitched { .. } | DomainEvent::SessionGone => None,
+        DomainEvent::ConfigChanged(_) => None,
     }
 }
 
@@ -203,6 +220,59 @@ mod tests {
             state,
             ..Default::default()
         })
+    }
+
+    #[test]
+    fn config_degisimi_kutuyu_acmaz() {
+        let mut e = Engine::new(EngineConfig::default());
+        let efektler = e.handle(
+            DomainEvent::ConfigChanged(EngineConfig {
+                show_ms: 5_000,
+                ..EngineConfig::default()
+            }),
+            0,
+        );
+        assert!(efektler.is_empty(), "ayar degisimi tetik degildir");
+        assert!(!e.is_on_screen());
+    }
+
+    #[test]
+    fn yeni_show_ms_sonraki_tetikte_gecerli() {
+        let mut e = Engine::new(EngineConfig::default());
+        e.handle(
+            DomainEvent::ConfigChanged(EngineConfig {
+                show_ms: 5_000,
+                ..EngineConfig::default()
+            }),
+            0,
+        );
+        // Ilk olay yutulur (1. gurultu kurali), ikincisi tetikler.
+        e.handle(media("A", PlaybackState::Playing), 10);
+        e.handle(media("B", PlaybackState::Playing), 20);
+        assert!(e.is_on_screen());
+
+        // Varsayilan 2500 ms'de hala ekranda olmali: yeni sure 5000.
+        assert!(e.tick(2_600).is_empty());
+        assert!(e.is_on_screen(), "yeni show_ms uygulanmamis");
+
+        // Deadline 20 + 5000 = 5020. Gizlenme iki adim: once fade, sonra Hide.
+        assert_eq!(phases(&e.tick(5_100)), vec![Phase::Leave]);
+        assert_eq!(e.tick(5_100 + EngineConfig::default().fade_ms), vec![Effect::Hide]);
+        assert!(!e.is_on_screen());
+    }
+
+    #[test]
+    fn config_degisimi_gurultu_gecmisini_silmez() {
+        // "Ilk olayi yut" kurali ayar degisiminde sifirlanmamali; yoksa
+        // her ayar degisiminden sonra bir olay bosa gider.
+        let mut e = Engine::new(EngineConfig::default());
+        e.handle(media("A", PlaybackState::Playing), 0); // yutulur
+        e.handle(DomainEvent::ConfigChanged(EngineConfig::default()), 5);
+        let efektler = e.handle(media("B", PlaybackState::Playing), 10);
+        assert!(
+            !efektler.is_empty(),
+            "ayar degisimi ilk-olay yutmasini geri getirmis"
+        );
     }
 
     fn vol(level: f32) -> DomainEvent {

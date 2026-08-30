@@ -16,4 +16,8 @@ pub enum DomainEvent {
     SessionGone,
     /// `IAudioEndpointVolumeCallback::OnNotify` — donanım tuşu, mixer, kulaklık.
     Volume(VolumeSnapshot),
+    /// Tepsi menüsü veya ayar dosyası değişti. **Tetik değildir**, hiçbir efekt
+    /// üretmez — `Engine`'e yalnızca core thread'i dokunsun diye bu kanaldan
+    /// geçiyor (`docs/superpowers/specs/2026-08-30-p5-paketleme-design.md` § 2).
+    ConfigChanged(super::engine::EngineConfig),
 }

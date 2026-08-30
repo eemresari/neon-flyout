@@ -34,6 +34,8 @@ pub enum DropReason {
     Foreground,
     /// `CurrentSessionChanged` / oturum yok: durum güncellenir, kutu açılmaz.
     SessionOnly,
+    /// Ayar değişimi — olay değil, tetik hiç değil.
+    Config,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -77,7 +79,14 @@ impl Gatekeeper {
             DomainEvent::SessionSwitched { .. } | DomainEvent::SessionGone => {
                 Verdict::Drop(DropReason::SessionOnly)
             }
+            DomainEvent::ConfigChanged(_) => Verdict::Drop(DropReason::Config),
         }
+    }
+
+    /// Yalnızca yapılandırma değişir; **görülmüşlük geçmişi korunur** — yoksa
+    /// her ayar değişiminden sonra "ilk olayı yut" kuralı bir olayı boşa yer.
+    pub fn reconfigure(&mut self, cfg: RuleConfig) {
+        self.cfg = cfg;
     }
 
     fn judge_media(&mut self, s: &MediaSnapshot) -> Verdict {

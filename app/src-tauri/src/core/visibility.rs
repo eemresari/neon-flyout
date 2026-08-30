@@ -77,6 +77,14 @@ impl VisibilityMachine {
         }
     }
 
+    /// Yeni süreler **bir sonraki tetikten** itibaren geçerli; ekrandaki kutunun
+    /// deadline'ı geriye dönük değiştirilmez (kutu ortada zıplamasın).
+    pub fn reconfigure(&mut self, show_ms: u64, fade_ms: u64, coalesce_ms: u64) {
+        self.show_ms = show_ms;
+        self.fade_ms = fade_ms;
+        self.coalesce_ms = coalesce_ms;
+    }
+
     #[allow(dead_code)]
     pub fn visibility(&self) -> Visibility {
         self.vis
