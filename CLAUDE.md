@@ -22,11 +22,12 @@ Hedef makine: Windows 11 x64. Minimum: Windows 10 1809 (build 17763).
 5. **P3 tamamlandı (2026-08-28): tasarım bağlı, sekiz durum uygulamada çıkıyor,
    WebView2 gizliyken render'ı duruyor.** DOM'a veya `design/`'a dokunmadan önce
    `docs/P3-SONUC.md`'yi oku.
-6. **P4 araştırması bitti (2026-08-29): `docs/P4-ARASTIRMA.md`.** Yöntem bulundu,
-   ama bu makinede bastırılacak pencere yok; P4 "ara, bulamazsan sessiz vazgeç"
-   koduna indi. **Ölçümü tekrarlama, § 5'teki planı uygula** — ama önce SAC
-   engeline bak, Rust derlemesi şu an kapalı olabilir.
-7. Sonra `docs/ROADMAP.md` → P5 (paketleme).
+6. **P4 tamamlandı (2026-08-30): `docs/P4-ARASTIRMA.md`.** Native flyout
+   bastırma çalışıyor (`adapters/native_flyout.rs`). Belge bir **yöntem hatasını**
+   da kaydediyor (`EnumWindows` band 18'i görmüyor) — pencere arayacaksan § 3.5'i
+   oku.
+7. **`docs/ROADMAP.md` → P5'ten (paketleme) başla.** P4'ün açık bıraktığı tek şey
+   orada kapanıyor: düzgün çıkış (tepsi ikonu) olmadan `restore()` çalışmıyor.
 
 `spikes/` altındaki üç proje P0 ve P1'in ölçüm düzeneğidir — **atılacak koddur**,
 uygulamanın iskeleti değil. Uygulama `app/` altında ayrı duruyor.
@@ -106,9 +107,12 @@ sonucu aşağıdaki listelerden birine geçir.
   öncesinde `NativeHWNDHost` + `DirectUIHWND`; doğru örneği ayırt etmek için
   sahip süreç `explorer.exe` **ve** `GetWindowBand(hWnd) == 0x12` (`AboveLockUX`).
   **Bant kontrolü zorunlu** — onsuz bu makinede Alt+Tab penceresi seçiliyor.
-  **Ama bu makinede bastırılacak pencere yok:** kullanıcı sesi tuşla değil fareyle
-  değiştiriyor, Windows da kutusunu tuş basımına açtığı için hiç çıkmıyor (45 sn
-  pasif izlemeyle ölçüldü). Ayrıntı ve uygulama planı: `docs/P4-ARASTIRMA.md`.
+  Uygulandı ve çalışıyor: `adapters/native_flyout.rs`.
+
+  **Pencere ararken `FindWindowEx` kullan, `EnumWindows` değil.** `EnumWindows`
+  band 18'deki pencereleri listelemiyor; P4'ün ilk ölçüm turu bu yüzden "pencere
+  yok" sanıp yanlış sonuca vardı. `EnumWindows`'un bir şey bulamaması kanıt
+  değildir. Ayrıntı: `docs/P4-ARASTIRMA.md` § 3.5.
 
 ## P0'da cevaplanan varsayımlar
 
@@ -210,41 +214,24 @@ uydurma, yuvarlama, "4px grid'e oturtma" yapma.
 $env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")
 ```
 
-### ⚠ Smart App Control — Rust derlemelerini engelliyor
+### Smart App Control — **kapatıldı (2026-08-30)**
 
-Bu makinede SAC **açık** (`VerifiedAndReputablePolicyState = 1`). İmzasız Rust
-ikililerini **hash başına, öngörülemez biçimde** engelliyor: aynı kaynaktan üretilen
-derlemelerin bir kısmı çalıştı, bir kısmı `Uygulama Denetimi ilkesi bu dosyayı
-engelledi` verdi. .NET etkilenmiyor (apphost bilinen şablon olduğu için geçiyor).
+`VerifiedAndReputablePolicyState = 0`. Rust derlemesi açık; `rustc`, `cargo` ve
+`npm run tauri dev` normal çalışıyor. **Bu ayar geri alınamaz** (tekrar açmak
+Windows'u yeniden kurmayı gerektirir) — kararı kullanıcı verdi.
 
-Engellenirse: kaynakta önemsiz bir değişiklik yapıp yeniden derle — farklı hash bazen
-geçiyor. **Bağımlılığın build script'i engellenirse** kaynağa dokunmak hash'i
-değiştirmez; `app/src-tauri/Cargo.toml`'daki `[profile.*.build-override]` bloğu tam
-bunun için duruyor (build script'leri farklı bayrakla derleyip hash'i değiştiriyor),
-P2'de `icu_properties_data` böyle aşıldı.
+Bu bölüm tarihsel kayıt olarak duruyor, çünkü izleri kodda:
 
-**2026-08-29 — durum kötüleşti: `rustc.exe`'nin kendisi engelleniyor.** Hem rustup
-shim'i (`~/.cargo/bin/rustc.exe`) hem gerçek toolchain ikilisi, hem Bash'ten hem
-PowerShell'den, üst üste her denemede `os error 4551` veriyor. Sonuçları:
-
-- **Rust derlemesi tamamen kapalı.** `cargo build`/`check`/`test` (derleme gerektiren
-  her biçimi) çalışmıyor. Zaten derlenmiş hedefler çalışıyor: `cargo test --lib`
-  16/16 geçiyor (yeniden derleme gerekmediği için) ve `target/debug/neon-flyout.exe`
-  sorunsuz koşuyor.
-- **`npm run tauri dev` panikliyor**, sebebi bu: tauri-cli önce `rustc -vV` ile host
-  triple'ı okuyor, engellenince `None` alıp `unwrap()` ediyor
-  (`crates/tauri-cli/src/interface/rust.rs:1166`). Panik yanıltıcı — Tauri'de değil
-  SAC'ta sorun var, önce `rustc -vV` çalıştırıp teyit et.
-- **`build-override` çaresi burada işe yaramaz:** engellenen dosyayı biz üretmiyoruz,
-  hash'ini değiştiremeyiz.
-
-Derleme gerektirmeyen iş (P4 kaynak araştırması, doküman, `design/`, frontend —
-Vite + mevcut debug ikilisi ile canlı test) yapılabilir. Derleme gerektiren her şey
-aşağıdaki karar verilene kadar bloke.
-
-Kalıcı çözüm ikisinden biri, **ikisi de kullanıcı kararı**: SAC'ı kapatmak
-(*geri alınamaz* — tekrar açmak Windows'u sıfırlamayı gerektirir) veya derlemeleri
-güvenilen bir sertifikayla imzalamak. Karar verilmedi; kendi başına kapatma.
+- `app/src-tauri/Cargo.toml` → `[profile.*.build-override]` bloğu SAC dönemindeki
+  build script engellerini aşmak için eklenmişti. İşlevsel etkisi yok, duruyor.
+- SAC açıkken engel şöyle görünüyordu: `Uygulama Denetimi ilkesi bu dosyayı
+  engelledi (os error 4551)`, olay günlüğünde
+  `Microsoft-Windows-CodeIntegrity/Operational` → olay 3033/3077.
+- `npm run tauri dev`'in `rust.rs:1166` paniği de bunun belirtisiydi: tauri-cli
+  `rustc -vV`'yi okuyamayınca `None`'ı `unwrap()` ediyor. Benzer bir panik
+  görürsen önce `rustc -vV` çalıştır.
+- Deneme dökümü (hangi ikili engelliydi, hangi çare işe yaramadı):
+  `docs/P4-ARASTIRMA.md` § 6.
 
 ### Depo
 

@@ -142,7 +142,12 @@ impl Engine {
     }
 
     fn frame(&self, phase: Phase, same_burst: bool) -> Frame {
-        Frame { kind: self.kind, phase, same_burst, state: self.state.clone() }
+        Frame {
+            kind: self.kind,
+            phase,
+            same_burst,
+            state: self.state.clone(),
+        }
     }
 
     /// Olayı duruma işler; durum gerçekten değiştiyse `true`.
@@ -190,14 +195,22 @@ mod tests {
     fn media(title: &str, state: PlaybackState) -> DomainEvent {
         DomainEvent::Media(MediaSnapshot {
             source_id: "Spotify".into(),
-            track: Track { title: title.into(), artist: "Vacations".into(), album: String::new() },
+            track: Track {
+                title: title.into(),
+                artist: "Vacations".into(),
+                album: String::new(),
+            },
             state,
             ..Default::default()
         })
     }
 
     fn vol(level: f32) -> DomainEvent {
-        DomainEvent::Volume(VolumeSnapshot { level, muted: false, device_name: "Realtek".into() })
+        DomainEvent::Volume(VolumeSnapshot {
+            level,
+            muted: false,
+            device_name: "Realtek".into(),
+        })
     }
 
     fn shows(fx: &[Effect]) -> usize {
@@ -254,7 +267,10 @@ mod tests {
             fx.extend(e.handle(vol(0.50 + i as f32 * 0.02), i * 80));
         }
         assert_eq!(shows(&fx), 1, "{fx:?}");
-        assert_eq!(phases(&fx).iter().filter(|p| **p == Phase::Enter).count(), 1);
+        assert_eq!(
+            phases(&fx).iter().filter(|p| **p == Phase::Enter).count(),
+            1
+        );
         // Son tuştan itibaren tam süre kalmalı.
         assert_eq!(e.next_timeout(800), Some(2_500));
     }
@@ -270,7 +286,12 @@ mod tests {
             state: PlaybackState::Opened,
             ..Default::default()
         });
-        let fx = e.handle(DomainEvent::SessionSwitched { source_id: "MSEdge".into() }, 100);
+        let fx = e.handle(
+            DomainEvent::SessionSwitched {
+                source_id: "MSEdge".into(),
+            },
+            100,
+        );
         assert!(fx.is_empty(), "{fx:?}");
         let fx = e.handle(bos, 100);
         assert!(fx.is_empty(), "boş oturum kutuyu açtı: {fx:?}");

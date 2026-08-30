@@ -34,6 +34,9 @@ windows = { version = "0.61", features = [
   "Media",
   "Media_Control",
   "Storage_Streams",
+  # RtlGetVersion — build numarasi icin. GetVersionEx manifest'e bagli,
+  # RtlGetVersion degil (adapters/native_flyout.rs).
+  "Wdk_System_SystemServices",
   "Win32_Devices_FunctionDiscovery",
   "Win32_Foundation",
   "Win32_Graphics_Gdi",
@@ -42,6 +45,10 @@ windows = { version = "0.61", features = [
   "Win32_Storage_Packaging_Appx",
   "Win32_System_Com",
   "Win32_System_Com_StructuredStorage",
+  # GetProcAddress — GetWindowBand'i calisma aninda cozmek icin; belgelenmemis
+  # ihracin user32.lib'de import stub'i yok (adapters/native_flyout.rs).
+  "Win32_System_LibraryLoader",
+  "Win32_System_SystemInformation",
   "Win32_System_Threading",
   "Win32_System_Variant",
   "Win32_UI_Shell_PropertiesSystem",

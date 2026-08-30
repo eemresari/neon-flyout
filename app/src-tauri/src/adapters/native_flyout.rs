@@ -1,27 +1,23 @@
 //! L2 — NativeFlyoutSuppressor. Windows'un kendi ses/medya kutusunu bastırır.
 //!
-//! **Emniyet kemeri, özellik değil.** Bu makinede bastırılacak pencere yok:
-//! Windows kutusunu ses/medya *tuşuna basılmasına* açıyor, seviyenin değişmesine
-//! değil — kullanıcı sesi fareyle değiştirdiği için Windows'un kutusu hiç
-//! çıkmıyor (`docs/P4-ARASTIRMA.md` § 3–4, 45 sn pasif izlemeyle ölçüldü).
-//! Kod yine de duruyor: tuş kullanan bir makinede pencere gerçekten çıkar.
-//!
 //! Bulamazsa **sessizce vazgeçer** — yol haritasının P4 çıkış kriteri bu.
 //! Yeniden deneme, kanca, zamanlayıcı yok; ModernFlyouts'un 3 sn'lik rehook
 //! döngüsü bastırmanın çalışmasına bağımlı bir uygulama için, biz değiliz.
 //!
-//! ---
-//! ⚠ **BU DOSYA HENÜZ DERLENMEDİ VE `adapters/mod.rs`'e BAĞLANMADI.**
-//! Smart App Control derlemeyi engellediği için (`CLAUDE.md` → SAC) doğrulanamadı.
-//! Engel kalkınca sırasıyla: `mod.rs`'e `pub mod native_flyout;` ekle →
-//! `cargo test --lib` ile derle → `lib.rs` `setup`'ında `suppress()`, çıkışta
-//! `restore()` çağır → `spikes/p4-probe/p4-probe.ps1` ile öncesi/sonrası doğrula.
-//! Bu makinede beklenen sonuç: `suppress()` **false** döner, uygulama normal
-//! çalışır — P4 çıkış kriterinin kendisi bu.
+//! **Pencereyi aramanın tek yolu `FindWindowEx`.** `EnumWindows` band 18'deki
+//! pencereleri listelemiyor; P4 ölçümlerinin ilk turu bu yüzden "pencere yok"
+//! sanmıştı (`docs/P4-ARASTIRMA.md` § 3.5). Doğrulama sondası da aynı sebeple
+//! `FindWindowEx` kullanmalı: `spikes/p4-probe/p4-find.ps1`.
+//!
+//! **Geri alma kırılgan:** `restore()` yalnızca uygulama düzgün kapanırsa
+//! (`RunEvent::Exit`) çalışır. Süreç öldürülürse kabuğun kutusu bastırılmış
+//! kalır — elle geri almak için `spikes/p4-probe/p4-restore.ps1`.
 
 use std::sync::Mutex;
 
-use windows::Win32::Foundation::{BOOL, CloseHandle, HWND, MAX_PATH};
+use windows::core::{s, w, PCWSTR, PWSTR};
+use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH};
+use windows::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
@@ -30,22 +26,30 @@ use windows::Win32::UI::WindowsAndMessaging::{
     ShowWindow, GWL_EXSTYLE, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SW_MINIMIZE, SW_RESTORE,
     WS_EX_LAYERED, WS_EX_TRANSPARENT,
 };
-use windows::core::{PCWSTR, PWSTR};
 
-// `GetWindowBand` belgelenmemiş bir `user32` ihracı ve `windows` crate'inde yok;
-// elle bildiriliyor. Pencerenin z-band'ini okur.
-#[link(name = "user32")]
-extern "system" {
-    fn GetWindowBand(hwnd: HWND, pdwband: *mut u32) -> BOOL;
+/// `GetWindowBand` pencerenin z-band'ini okur. Belgelenmemiş bir `user32` ihracı:
+/// `windows` crate'inde yok **ve `user32.lib`'de import stub'ı da yok**, dolayısıyla
+/// `#[link]` ile bildirmek `LNK2019: __imp_GetWindowBand` veriyor. Tek yolu çalışma
+/// anında çözmek. Bulunamazsa `None` döner ve bastırma sessizce vazgeçer — bant
+/// kontrolü yapılamıyorsa **hiçbir pencereye dokunulmaz** (bkz. `ZBID_ABOVELOCK_UX`).
+fn window_band(h: HWND) -> Option<u32> {
+    type GetWindowBandFn = unsafe extern "system" fn(HWND, *mut u32) -> i32;
+    unsafe {
+        let user32 = GetModuleHandleW(w!("user32.dll")).ok()?;
+        let proc = GetProcAddress(user32, s!("GetWindowBand"))?;
+        let get_window_band: GetWindowBandFn = std::mem::transmute(proc);
+        let mut band = 0u32;
+        (get_window_band(h, &mut band) != 0).then_some(band)
+    }
 }
 
 /// Flyout host'unun bandı. **Ayırt etmenin tek güvenilir yolu bu.**
 ///
-/// `XamlExplorerHostIslandWindow` kabuğun genel amaçlı XAML ada penceresi; bu
-/// makinedeki tek örneği **Alt+Tab** (band 16 = `SystemTools`). FluentFlyout'un
-/// bant kontrolsüz sezgiseli (InputSite çocuğu + sıfır olmayan rect) o pencereye
-/// tam uyuyor — kopyalansaydı Alt+Tab'ı ekran dışına taşırdık
-/// (`docs/P4-ARASTIRMA.md` § 3.1). **Bu şart kaldırılamaz.**
+/// `XamlExplorerHostIslandWindow` kabuğun genel amaçlı XAML ada penceresi. Bu
+/// makinede üç örneği ölçüldü: flyout host'u (band 18), **Alt+Tab** (band 16) ve
+/// bir başkası (band 7). FluentFlyout'un bant kontrolsüz sezgiseli (InputSite
+/// çocuğu + sıfır olmayan rect) Alt+Tab'a da uyuyor — kopyalansaydı onu ekran
+/// dışına taşırdık (`docs/P4-ARASTIRMA.md` § 3.1). **Bu şart kaldırılamaz.**
 const ZBID_ABOVELOCK_UX: u32 = 0x12;
 
 /// 22H2 (build 22620) OSD'yi XAML adasına taşıdı; öncesi klasik DirectUI.
@@ -178,9 +182,7 @@ fn find() -> Option<(isize, isize)> {
             continue;
         }
 
-        let mut band = 0u32;
-        let ok = unsafe { GetWindowBand(host, &mut band) }.as_bool();
-        if ok && band == ZBID_ABOVELOCK_UX {
+        if window_band(host) == Some(ZBID_ABOVELOCK_UX) {
             return Some((host.0 as isize, inner.0 as isize));
         }
     }

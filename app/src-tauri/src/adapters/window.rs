@@ -4,6 +4,7 @@
 //! Flip yolunu kapatıyor, opaklığı sıfırlayıp pencereyi açık bırakmak bedeli
 //! sürdürüyor (`CLAUDE.md` → "Neden `SW_HIDE`, alpha 0 değil").
 
+use windows::core::PWSTR;
 use windows::Win32::Foundation::{CloseHandle, ERROR_SUCCESS, HANDLE, HWND, MAX_PATH, RECT};
 use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
@@ -17,7 +18,6 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE,
     SWP_NOSIZE, SW_HIDE, SW_SHOWNOACTIVATE, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
-use windows::core::PWSTR;
 
 /// Ekran kenarına bırakılan boşluk (fiziksel piksel). Köşe/monitör seçimi P3.
 const MARGIN: i32 = 16;
@@ -114,7 +114,10 @@ pub fn foreground_matches(source_id: &str) -> bool {
         };
         let matched = aumid(proc).is_some_and(|a| a.eq_ignore_ascii_case(source_id))
             || exe_stem(proc).is_some_and(|s| {
-                !s.is_empty() && source_id.to_ascii_lowercase().contains(&s.to_ascii_lowercase())
+                !s.is_empty()
+                    && source_id
+                        .to_ascii_lowercase()
+                        .contains(&s.to_ascii_lowercase())
             });
         let _ = CloseHandle(proc);
         matched

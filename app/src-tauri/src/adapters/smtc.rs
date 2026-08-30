@@ -50,14 +50,16 @@ impl Bound {
 /// Kendi thread'i, kendi apartment'ı. MTA: olaylar thread pool'da gelir, mesaj
 /// pompası gerekmez.
 pub fn spawn(tx: Sender<DomainEvent>) -> std::io::Result<()> {
-    std::thread::Builder::new().name("smtc".into()).spawn(move || {
-        unsafe {
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        }
-        if let Err(e) = run(tx) {
-            eprintln!("[smtc] baslatilamadi: {e} (HRESULT {:#010x})", e.code().0);
-        }
-    })?;
+    std::thread::Builder::new()
+        .name("smtc".into())
+        .spawn(move || {
+            unsafe {
+                let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            }
+            if let Err(e) = run(tx) {
+                eprintln!("[smtc] baslatilamadi: {e} (HRESULT {:#010x})", e.code().0);
+            }
+        })?;
     Ok(())
 }
 
@@ -112,30 +114,34 @@ fn rebind(bound: &Arc<Mutex<Option<Bound>>>, mgr: &SessionManager, tx: &Sender<D
 
     let t = tx.clone();
     let props = session
-        .MediaPropertiesChanged(&TypedEventHandler::<Session, MediaPropertiesChangedEventArgs>::new(
-            move |s: Ref<'_, Session>, _| {
-                if let Ok(s) = s.ok() {
-                    if let Some(snap) = snapshot(s) {
-                        let _ = t.send(DomainEvent::Media(snap));
+        .MediaPropertiesChanged(
+            &TypedEventHandler::<Session, MediaPropertiesChangedEventArgs>::new(
+                move |s: Ref<'_, Session>, _| {
+                    if let Ok(s) = s.ok() {
+                        if let Some(snap) = snapshot(s) {
+                            let _ = t.send(DomainEvent::Media(snap));
+                        }
                     }
-                }
-                Ok(())
-            },
-        ))
+                    Ok(())
+                },
+            ),
+        )
         .unwrap_or(0);
 
     let t = tx.clone();
     let playback = session
-        .PlaybackInfoChanged(&TypedEventHandler::<Session, PlaybackInfoChangedEventArgs>::new(
-            move |s: Ref<'_, Session>, _| {
-                if let Ok(s) = s.ok() {
-                    if let Some(snap) = snapshot(s) {
-                        let _ = t.send(DomainEvent::Media(snap));
+        .PlaybackInfoChanged(
+            &TypedEventHandler::<Session, PlaybackInfoChangedEventArgs>::new(
+                move |s: Ref<'_, Session>, _| {
+                    if let Ok(s) = s.ok() {
+                        if let Some(snap) = snapshot(s) {
+                            let _ = t.send(DomainEvent::Media(snap));
+                        }
                     }
-                }
-                Ok(())
-            },
-        ))
+                    Ok(())
+                },
+            ),
+        )
         .unwrap_or(0);
 
     // Bağlanma anında içerik hazırsa gönder (tarayıcı → Spotify yönünde oluyor).
@@ -146,14 +152,21 @@ fn rebind(bound: &Arc<Mutex<Option<Bound>>>, mgr: &SessionManager, tx: &Sender<D
         }
     }
 
-    *guard = Some(Bound { session, props, playback });
+    *guard = Some(Bound {
+        session,
+        props,
+        playback,
+    });
 }
 
 /// Oturumun o andaki hâli. Ölmekte olan oturumdan okumak hata verebilir —
 /// hata değil, sessizce atılır (§ 7).
 fn snapshot(session: &Session) -> Option<MediaSnapshot> {
     let info = session.GetPlaybackInfo().ok()?;
-    let state = info.PlaybackStatus().map(to_state).unwrap_or(PlaybackState::Unknown);
+    let state = info
+        .PlaybackStatus()
+        .map(to_state)
+        .unwrap_or(PlaybackState::Unknown);
 
     let controls = info
         .Controls()
@@ -173,7 +186,10 @@ fn snapshot(session: &Session) -> Option<MediaSnapshot> {
         .map(|s| s.to_string())
         .unwrap_or_default();
 
-    let props = session.TryGetMediaPropertiesAsync().and_then(|op| op.get()).ok();
+    let props = session
+        .TryGetMediaPropertiesAsync()
+        .and_then(|op| op.get())
+        .ok();
     let track = props
         .as_ref()
         .map(|p| Track {
@@ -185,7 +201,9 @@ fn snapshot(session: &Session) -> Option<MediaSnapshot> {
 
     // Kapak her olayda değil, parça başına bir kez çözülüyor; olayların çoğu kutu
     // gizliyken geldiği için açılış anında görsel çoktan hazır oluyor.
-    let art = props.as_ref().and_then(|p| art_cached(art_key(&source_id, &track), p));
+    let art = props
+        .as_ref()
+        .and_then(|p| art_cached(art_key(&source_id, &track), p));
 
     Some(MediaSnapshot {
         source_is_foreground: window::foreground_matches(&source_id),
@@ -207,7 +225,12 @@ static ART_CACHE: Mutex<Option<(ArtKey, Option<String>)>> = Mutex::new(None);
 /// Kaynak da anahtarda: aynı başlık iki oturumda farklı görsel taşıyabilir
 /// (Spotify ↔ tarayıcı sekmesi).
 fn art_key(source_id: &str, t: &Track) -> ArtKey {
-    (source_id.to_string(), t.title.clone(), t.artist.clone(), t.album.clone())
+    (
+        source_id.to_string(),
+        t.title.clone(),
+        t.artist.clone(),
+        t.album.clone(),
+    )
 }
 
 fn art_cached(key: ArtKey, props: &MediaProps) -> Option<String> {
@@ -231,8 +254,15 @@ fn art_cached(key: ArtKey, props: &MediaProps) -> Option<String> {
 const MAX_ART: u64 = 512 * 1024;
 
 fn thumbnail(props: &MediaProps) -> Option<String> {
-    let stream: IRandomAccessStream =
-        props.Thumbnail().ok()?.OpenReadAsync().ok()?.get().ok()?.cast().ok()?;
+    let stream: IRandomAccessStream = props
+        .Thumbnail()
+        .ok()?
+        .OpenReadAsync()
+        .ok()?
+        .get()
+        .ok()?
+        .cast()
+        .ok()?;
     let size = stream.Size().ok()?;
     if size == 0 || size > MAX_ART {
         return None;
@@ -241,7 +271,11 @@ fn thumbnail(props: &MediaProps) -> Option<String> {
     reader.LoadAsync(size as u32).ok()?.get().ok()?;
     let mut buf = vec![0u8; size as usize];
     reader.ReadBytes(&mut buf).ok()?;
-    Some(format!("data:{};base64,{}", mime(&buf), BASE64.encode(&buf)))
+    Some(format!(
+        "data:{};base64,{}",
+        mime(&buf),
+        BASE64.encode(&buf)
+    ))
 }
 
 /// `IRandomAccessStreamWithContentType::ContentType` bazı kaynaklarda boş
@@ -281,7 +315,9 @@ fn position(session: &Session) -> Option<Position> {
 
 fn now_100ns_since_1601() -> i64 {
     const UNIX_TO_1601_SECS: i64 = 11_644_473_600;
-    let d = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    let d = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
     (d.as_secs() as i64 + UNIX_TO_1601_SECS) * 10_000_000 + (d.subsec_nanos() as i64 / 100)
 }
 

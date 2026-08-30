@@ -32,14 +32,16 @@ use crate::core::model::VolumeSnapshot;
 use crate::core::DomainEvent;
 
 pub fn spawn(tx: Sender<DomainEvent>) -> std::io::Result<()> {
-    std::thread::Builder::new().name("audio".into()).spawn(move || {
-        unsafe {
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        }
-        if let Err(e) = run(tx) {
-            eprintln!("[audio] baslatilamadi: {e} (HRESULT {:#010x})", e.code().0);
-        }
-    })?;
+    std::thread::Builder::new()
+        .name("audio".into())
+        .spawn(move || {
+            unsafe {
+                let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            }
+            if let Err(e) = run(tx) {
+                eprintln!("[audio] baslatilamadi: {e} (HRESULT {:#010x})", e.code().0);
+            }
+        })?;
     Ok(())
 }
 
@@ -68,7 +70,10 @@ fn run(tx: Sender<DomainEvent>) -> WinResult<()> {
         unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)? };
 
     let (cmd_tx, cmd_rx) = sync_channel::<Cmd>(4);
-    let watcher: IMMNotificationClient = DeviceWatcher { tx: Mutex::new(cmd_tx) }.into();
+    let watcher: IMMNotificationClient = DeviceWatcher {
+        tx: Mutex::new(cmd_tx),
+    }
+    .into();
     unsafe { enumerator.RegisterEndpointNotificationCallback(&watcher)? };
 
     let mut bound = bind(&enumerator, &tx);
@@ -107,8 +112,14 @@ fn bind(enumerator: &IMMDeviceEnumerator, tx: &Sender<DomainEvent>) -> Option<Bo
     unsafe { volume.RegisterControlChangeNotify(&cb) }.ok()?;
 
     let level = unsafe { volume.GetMasterVolumeLevelScalar() }.unwrap_or(0.0);
-    let muted = unsafe { volume.GetMute() }.map(|b| b.as_bool()).unwrap_or(false);
-    let _ = tx.send(DomainEvent::Volume(VolumeSnapshot { level, muted, device_name }));
+    let muted = unsafe { volume.GetMute() }
+        .map(|b| b.as_bool())
+        .unwrap_or(false);
+    let _ = tx.send(DomainEvent::Volume(VolumeSnapshot {
+        level,
+        muted,
+        device_name,
+    }));
 
     Some(Bound { volume, cb })
 }
@@ -158,12 +169,7 @@ struct DeviceWatcher {
 }
 
 impl IMMNotificationClient_Impl for DeviceWatcher_Impl {
-    fn OnDefaultDeviceChanged(
-        &self,
-        flow: EDataFlow,
-        role: ERole,
-        _id: &PCWSTR,
-    ) -> WinResult<()> {
+    fn OnDefaultDeviceChanged(&self, flow: EDataFlow, role: ERole, _id: &PCWSTR) -> WinResult<()> {
         // Yalnızca kullanıcının duyduğu çıkış yolu ilgilendiriyor.
         if flow == eRender && role == eMultimedia {
             if let Ok(tx) = self.tx.lock() {
@@ -186,7 +192,6 @@ impl IMMNotificationClient_Impl for DeviceWatcher_Impl {
         Ok(())
     }
 }
-
 
 // ---------------------------------------------------------------- tepe metre --
 //
@@ -211,57 +216,57 @@ pub enum MeterCmd {
 
 /// Ölçülen tepe değerini (0–1) dışarı veren geri çağrı. Tauri tipini adapter'a
 /// sokmamak için kapanış olarak alınıyor; kanala yazan taraf sürücü.
-pub fn spawn_meter(
-    sink: impl Fn(f32) + Send + 'static,
-) -> std::io::Result<SyncSender<MeterCmd>> {
+pub fn spawn_meter(sink: impl Fn(f32) + Send + 'static) -> std::io::Result<SyncSender<MeterCmd>> {
     let (tx, rx) = sync_channel::<MeterCmd>(4);
-    std::thread::Builder::new().name("meter".into()).spawn(move || {
-        unsafe {
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        }
-        let enumerator: IMMDeviceEnumerator =
-            match unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) } {
-                Ok(e) => e,
-                Err(e) => {
-                    eprintln!("[meter] enumerator yok: {e}");
-                    return;
-                }
-            };
+    std::thread::Builder::new()
+        .name("meter".into())
+        .spawn(move || {
+            unsafe {
+                let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+            }
+            let enumerator: IMMDeviceEnumerator =
+                match unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) } {
+                    Ok(e) => e,
+                    Err(e) => {
+                        eprintln!("[meter] enumerator yok: {e}");
+                        return;
+                    }
+                };
 
-        let mut meter: Option<IAudioMeterInformation> = None;
-        loop {
-            // Çalışmıyorken süresiz bekle: gizliyken bu thread hiç uyanmıyor.
-            let cmd = if meter.is_some() {
-                match rx.recv_timeout(METRE_PERIYODU) {
-                    Ok(c) => Some(c),
-                    Err(RecvTimeoutError::Timeout) => None,
-                    Err(RecvTimeoutError::Disconnected) => return,
-                }
-            } else {
-                match rx.recv() {
-                    Ok(c) => Some(c),
-                    Err(_) => return,
-                }
-            };
+            let mut meter: Option<IAudioMeterInformation> = None;
+            loop {
+                // Çalışmıyorken süresiz bekle: gizliyken bu thread hiç uyanmıyor.
+                let cmd = if meter.is_some() {
+                    match rx.recv_timeout(METRE_PERIYODU) {
+                        Ok(c) => Some(c),
+                        Err(RecvTimeoutError::Timeout) => None,
+                        Err(RecvTimeoutError::Disconnected) => return,
+                    }
+                } else {
+                    match rx.recv() {
+                        Ok(c) => Some(c),
+                        Err(_) => return,
+                    }
+                };
 
-            match cmd {
-                Some(MeterCmd::Start) => {
-                    if meter.is_none() {
-                        meter = bind_meter(&enumerator);
+                match cmd {
+                    Some(MeterCmd::Start) => {
+                        if meter.is_none() {
+                            meter = bind_meter(&enumerator);
+                        }
+                    }
+                    Some(MeterCmd::Stop) => meter = None,
+                    // Zaman aşımı = bir örnekleme anı.
+                    None => {
+                        let v = meter
+                            .as_ref()
+                            .and_then(|m| unsafe { m.GetPeakValue() }.ok())
+                            .unwrap_or(0.0);
+                        sink(v);
                     }
                 }
-                Some(MeterCmd::Stop) => meter = None,
-                // Zaman aşımı = bir örnekleme anı.
-                None => {
-                    let v = meter
-                        .as_ref()
-                        .and_then(|m| unsafe { m.GetPeakValue() }.ok())
-                        .unwrap_or(0.0);
-                    sink(v);
-                }
             }
-        }
-    })?;
+        })?;
     Ok(tx)
 }
 

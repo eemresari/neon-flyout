@@ -179,7 +179,9 @@ mod tests {
         }
         assert_eq!(sonuclar[0], (ShowOutcome::Opened, false));
         assert!(
-            sonuclar[1..].iter().all(|(o, burst)| *o == ShowOutcome::UpdatedInPlace && *burst),
+            sonuclar[1..]
+                .iter()
+                .all(|(o, burst)| *o == ShowOutcome::UpdatedInPlace && *burst),
             "seri içindeki olaylar yerinde güncellemeli ve aynı seriden sayılmalı: {sonuclar:?}"
         );
     }

@@ -46,6 +46,13 @@ pub fn run() {
             // basina durdurmuyor (`docs/P3-SONUC.md`).
             adapters::webview::capture(&win);
 
+            // Windows'un kendi kutusu: bulunursa bastırılır, bulunmazsa sessizce
+            // geçilir ve uygulama normal çalışır (`docs/P4-ARASTIRMA.md`).
+            // Geri alma `RunEvent::Exit`'te; süreç öldürülürse çalışmaz.
+            if adapters::native_flyout::suppress() {
+                eprintln!("[native_flyout] Windows'un flyout'u bastirildi");
+            }
+
             adapters::smtc::spawn(tx.clone())?;
             adapters::audio::spawn(tx.clone())?;
 
@@ -60,19 +67,21 @@ pub fn run() {
                 .spawn(move || core_loop(handle, hwnd, meter, rx))?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("Tauri baslatilamadi");
+        .build(tauri::generate_context!())
+        .expect("Tauri baslatilamadi")
+        .run(|_app, event| {
+            // Bastırma geri alınabilir olmalı: kullanıcının masaüstünde kalıcı
+            // bir değişiklik bırakmıyoruz. Bastırma yapılmadıysa no-op.
+            if let tauri::RunEvent::Exit = event {
+                adapters::native_flyout::restore();
+            }
+        });
 }
 
 /// Tek yazıcı görev. Ayrı bir zamanlayıcı thread'i yok: deadline'a kalan süre
 /// `recv_timeout`'un beklemesi olarak geçiyor, böylece üst üste binen
 /// zamanlayıcı ihtimali ortadan kalkıyor.
-fn core_loop(
-    app: AppHandle,
-    hwnd: isize,
-    meter: SyncSender<MeterCmd>,
-    rx: Receiver<DomainEvent>,
-) {
+fn core_loop(app: AppHandle, hwnd: isize, meter: SyncSender<MeterCmd>, rx: Receiver<DomainEvent>) {
     let start = Instant::now();
     let now = move || start.elapsed().as_millis() as u64;
     let mut engine = Engine::new(EngineConfig::default());

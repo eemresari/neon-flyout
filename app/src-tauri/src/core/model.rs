@@ -21,7 +21,10 @@ impl PlaybackState {
     /// boş doğuyor ve içerik 14 ms sonra geliyor (`docs/P1-SONUC.md` § 5.1).
     /// `Changing` tolere edilir ama beklenmez (§ 6.4).
     pub fn is_showable(self) -> bool {
-        matches!(self, Self::Playing | Self::Paused | Self::Stopped | Self::Changing)
+        matches!(
+            self,
+            Self::Playing | Self::Paused | Self::Stopped | Self::Changing
+        )
     }
 }
 
@@ -110,7 +113,11 @@ pub struct VolumeSnapshot {
 
 impl Default for VolumeSnapshot {
     fn default() -> Self {
-        Self { level: 0.0, muted: false, device_name: String::new() }
+        Self {
+            level: 0.0,
+            muted: false,
+            device_name: String::new(),
+        }
     }
 }
 

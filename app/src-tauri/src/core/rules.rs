@@ -45,7 +45,9 @@ pub struct RuleConfig {
 
 impl Default for RuleConfig {
     fn default() -> Self {
-        Self { skip_when_foreground: false }
+        Self {
+            skip_when_foreground: false,
+        }
     }
 }
 
@@ -62,7 +64,10 @@ pub struct Gatekeeper {
 
 impl Gatekeeper {
     pub fn new(cfg: RuleConfig) -> Self {
-        Self { cfg, ..Default::default() }
+        Self {
+            cfg,
+            ..Default::default()
+        }
     }
 
     pub fn judge(&mut self, ev: &DomainEvent) -> Verdict {
@@ -123,14 +128,22 @@ mod tests {
     fn media(title: &str, artist: &str, state: PlaybackState) -> DomainEvent {
         DomainEvent::Media(MediaSnapshot {
             source_id: "test!App".into(),
-            track: Track { title: title.into(), artist: artist.into(), album: String::new() },
+            track: Track {
+                title: title.into(),
+                artist: artist.into(),
+                album: String::new(),
+            },
             state,
             ..Default::default()
         })
     }
 
     fn vol(level: f32, muted: bool) -> DomainEvent {
-        DomainEvent::Volume(VolumeSnapshot { level, muted, device_name: "Test".into() })
+        DomainEvent::Volume(VolumeSnapshot {
+            level,
+            muted,
+            device_name: "Test".into(),
+        })
     }
 
     /// Uygulama açılışında gönderilen başlangıç anlık görüntüsü kutuyu açmamalı.
@@ -141,7 +154,10 @@ mod tests {
             g.judge(&media("A", "B", PlaybackState::Playing)),
             Verdict::Drop(DropReason::FirstEvent)
         );
-        assert_eq!(g.judge(&media("C", "D", PlaybackState::Playing)), Verdict::Trigger);
+        assert_eq!(
+            g.judge(&media("C", "D", PlaybackState::Playing)),
+            Verdict::Trigger
+        );
     }
 
     /// P1 § 6.2: Spotify aynı olayı 2, Edge 3 kez gönderdi.
@@ -149,7 +165,10 @@ mod tests {
     fn ayni_uclu_tekrar_gelirse_yutulur() {
         let mut g = Gatekeeper::default();
         g.judge(&media("ilk", "", PlaybackState::Playing));
-        assert_eq!(g.judge(&media("A", "B", PlaybackState::Playing)), Verdict::Trigger);
+        assert_eq!(
+            g.judge(&media("A", "B", PlaybackState::Playing)),
+            Verdict::Trigger
+        );
         assert_eq!(
             g.judge(&media("A", "B", PlaybackState::Playing)),
             Verdict::Drop(DropReason::Unchanged)
@@ -159,7 +178,10 @@ mod tests {
             Verdict::Drop(DropReason::Unchanged)
         );
         // Durum değişirse aynı parça olsa bile tetik: kullanıcı duraklattı.
-        assert_eq!(g.judge(&media("A", "B", PlaybackState::Paused)), Verdict::Trigger);
+        assert_eq!(
+            g.judge(&media("A", "B", PlaybackState::Paused)),
+            Verdict::Trigger
+        );
     }
 
     /// P1 § 5.1: yeni oturum boş doğuyor, durumu `Opened`.
@@ -185,18 +207,29 @@ mod tests {
     fn oturum_degisimi_tek_basina_tetik_degil() {
         let mut g = Gatekeeper::default();
         g.judge(&media("ilk", "", PlaybackState::Playing));
-        let ev = DomainEvent::SessionSwitched { source_id: "MSEdge".into() };
+        let ev = DomainEvent::SessionSwitched {
+            source_id: "MSEdge".into(),
+        };
         assert_eq!(g.judge(&ev), Verdict::Drop(DropReason::SessionOnly));
-        assert_eq!(g.judge(&DomainEvent::SessionGone), Verdict::Drop(DropReason::SessionOnly));
+        assert_eq!(
+            g.judge(&DomainEvent::SessionGone),
+            Verdict::Drop(DropReason::SessionOnly)
+        );
     }
 
     #[test]
     fn ses_seviyesi_ayni_yuzdede_yutulur() {
         let mut g = Gatekeeper::default();
-        assert_eq!(g.judge(&vol(0.50, false)), Verdict::Drop(DropReason::FirstEvent));
+        assert_eq!(
+            g.judge(&vol(0.50, false)),
+            Verdict::Drop(DropReason::FirstEvent)
+        );
         assert_eq!(g.judge(&vol(0.64, false)), Verdict::Trigger);
         // Sürücü kaynaklı float gürültüsü aynı yüzdeye yuvarlanıyor.
-        assert_eq!(g.judge(&vol(0.640_000_1, false)), Verdict::Drop(DropReason::Unchanged));
+        assert_eq!(
+            g.judge(&vol(0.640_000_1, false)),
+            Verdict::Drop(DropReason::Unchanged)
+        );
         assert_eq!(g.judge(&vol(0.64, true)), Verdict::Trigger);
     }
 
@@ -204,7 +237,11 @@ mod tests {
     fn on_plandaki_ayar_kapaliyken_gecer_acikken_atlanir() {
         let fg = |on: bool| {
             DomainEvent::Media(MediaSnapshot {
-                track: Track { title: "A".into(), artist: "B".into(), album: String::new() },
+                track: Track {
+                    title: "A".into(),
+                    artist: "B".into(),
+                    album: String::new(),
+                },
                 state: PlaybackState::Playing,
                 source_is_foreground: on,
                 ..Default::default()
@@ -215,7 +252,9 @@ mod tests {
         kapali.judge(&media("ilk", "", PlaybackState::Playing));
         assert_eq!(kapali.judge(&fg(true)), Verdict::Trigger);
 
-        let mut acik = Gatekeeper::new(RuleConfig { skip_when_foreground: true });
+        let mut acik = Gatekeeper::new(RuleConfig {
+            skip_when_foreground: true,
+        });
         acik.judge(&media("ilk", "", PlaybackState::Playing));
         assert_eq!(acik.judge(&fg(true)), Verdict::Drop(DropReason::Foreground));
     }

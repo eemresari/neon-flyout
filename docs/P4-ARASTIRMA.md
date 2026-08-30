@@ -1,12 +1,16 @@
 # P4 — native flyout bastırma: kaynak araştırması ve ilk ölçüm
 
-**Tarih:** 2026-08-29 · **Durum: araştırma ve ölçüm bitti, kod yazılmadı (SAC bloke).**
+**Tarih:** 2026-08-29 / 30 · **Durum: tamamlandı — kod yazıldı, derlendi, çalışıyor.**
 
-Bu aşama `CLAUDE.md`'deki 1. doğrulanmamış varsayımı hedefliyor: *"Windows'un native
-flyout'unu gizlemenin güncel yöntemi."* **Cevap alındı:** yöntem § 1–2'de, ama
-ölçüm (§ 3) bu makinede bastırılacak bir pencere olmadığını gösterdi — gerekçesi
-projenin kendi varlık sebebiyle aynı (§ 4). Uygulama planı § 5'te; Rust derlemesi
-Smart App Control tarafından engellendiği için yazılamadı.
+Bu aşama `CLAUDE.md`'deki 1. doğrulanmamış varsayımını hedefliyordu: *"Windows'un
+native flyout'unu gizlemenin güncel yöntemi."* Yöntem § 1–2'de, uygulaması
+`app/src-tauri/src/adapters/native_flyout.rs`'te.
+
+> **Bu belge bir yanlışı da kaydediyor.** § 3'ün ilk turu "bu makinede bastırılacak
+> pencere yok" sonucuna vardı ve **bu yanlıştı**: ölçüm `EnumWindows` kullanıyordu,
+> o da band 18'deki pencereleri listelemiyor. Pencere baştan beri oradaydı. Hatanın
+> nasıl ortaya çıktığı § 3.5'te, düzeltilmiş sonuç § 4'te. Bölümler bilerek
+> silinmedi — yöntem hatasının kendisi bu projede kayda değer.
 
 ---
 
@@ -66,16 +70,21 @@ ShowWindow(host, SW_MINIMIZE);
 Pencereyi ekran dışına taşıyıp tıklama geçirgen yapıyor. Çıkarken `ShowVolumeOsd()`
 orijinal ex-style'ı, konumu ve `SW_RESTORE`'u geri koyuyor. Kanca yok, sürekli iş yok.
 
-**Bizim için doğru olan bu ikincisi** — kanca kurmadan, tek seferde, çıkışta geri
-alınabilir; P4'ün çıkış kriteri ("bastırma başarısız olsa bile uygulama çalışmaya
-devam etsin") ile de örtüşüyor. Ama önce § 4'teki soru cevaplanmalı.
+**Bizim için doğru olan bu ikincisi** ve uygulanan da bu — kanca kurmadan, tek
+seferde, çıkışta geri alınabilir; P4'ün çıkış kriteri ("bastırma başarısız olsa
+bile uygulama çalışmaya devam etsin") ile de örtüşüyor. Ayırt etme için
+ModernFlyouts'un bant kontrolü alındı: **iki projenin birleşimi.**
 
 ---
 
-## 3. Ölçüm — bu makinede (build 26200) flyout penceresi **yok**
+## 3. Ölçüm — ilk üç tur **hatalı**, düzeltmesi § 3.5'te
 
 Salt-okunur PowerShell sondaları (`spikes/p4-probe/`), Rust derlemesi gerektirmiyor
-(SAC engeli için `CLAUDE.md`'ye bak).
+(o sırada SAC derlemeyi engelliyordu, bkz. § 6).
+
+**3.1–3.4 aşağıda olduğu gibi duruyor ama sonuçları geçersiz** — üçü de
+`EnumWindows` tabanlı ve o, aranan pencereyi göremiyor. Neden ve nasıl anlaşıldığı
+§ 3.5'te.
 
 **3.1 — Sınıf taraması.** Tüm üst düzey pencereler tarandı:
 
@@ -89,10 +98,11 @@ NativeHWNDHost : 0 adet
 Tek örnek **Alt+Tab** penceresi: band **16** (`SystemTools`), ModernFlyouts'un
 aradığı **18** (`AboveLockUX`) değil.
 
-> ⚠ **FluentFlyout'un sezgiseli bu makinede Alt+Tab penceresini seçerdi**
-> (bridge + InputSite + sıfır olmayan rect — üç şart da tutuyor) ve onu ekran
-> dışına taşıyıp küçültürdü. Bant kontrolü olmadan bu yöntem **kullanılamaz.**
-> ModernFlyouts'un `band == 0x12` şartı doğru davranıyor: hiçbir şey bulmuyor.
+> ⚠ **Bu tespit hâlâ geçerli ve önemli: FluentFlyout'un sezgiseli bu makinede
+> Alt+Tab penceresini seçerdi** (bridge + InputSite + sıfır olmayan rect — üç şart
+> da tutuyor) ve onu ekran dışına taşıyıp küçültürdü. Bant kontrolü olmadan o
+> yöntem **kullanılamaz.** Çalışan kodda `band == 0x12` şartı bu yüzden var ve
+> § 3.5'te kendini kanıtladı: Alt+Tab'a ve band 7'deki başka bir adaya dokunmadı.
 
 **3.2 — Ses tuşu anında pencere farkı.** `VOLUME_UP` gönderildi, 423 üst düzey
 pencere 2 saniye boyunca 60 ms'de bir örneklendi (yeni pencere / görünürlük / konum
@@ -121,29 +131,63 @@ sırada sesi kendi normal yoluyla değiştirdi:
 23:56:39.479  GORUNURLUK True->False   [Tauri Window] neon-flyout              ← 2.6 sn sonra
 ```
 
-Ses değiştiği anda (36.822) **hiçbir Windows penceresi yaratılmadı, gösterilmedi,
-kıpırdamadı.** 31. saniyedeki ada penceresi ses değil pencere sürüklemeye ait (aynı
-anda TouchDesigner penceresi taşınıyordu, band 1 = Desktop, saniyeler içinde yok
-oldu — sonradan alınan tarama yine tek `XamlExplorerHostIslandWindow` görüyor:
-Alt+Tab, band 16).
+Ses değiştiği anda (36.822) `EnumWindows`'un gördüğü hiçbir pencere kıpırdamadı.
+**Bu ölçüm geçerli değil — sebebi § 3.5.**
+
+**3.5 — Yöntem hatası: `EnumWindows` band 18'i görmüyor.** Yukarıdaki üç ölçümün
+üçü de `EnumWindows` tabanlıydı ve hepsi aynı kör noktayı paylaşıyor: **yüksek
+z-band'deki pencereler bu listede çıkmıyor.** Flyout host'u tam olarak orada
+yaşıyor (band 18 = `AboveLockUX`), dolayısıyla ölçümler onu göremedi ve "pencere
+yok" sonucu üretti. Alt+Tab penceresinin (band 16) görünmesi yanıltıcı oldu —
+eşiğin altında kaldığı için listeleniyor.
+
+Hata, kod çalıştırıldığında ortaya çıktı. `find()` — ki `FindWindowEx` kullanıyor —
+ilk denemede buldu:
+
+```
+[native_flyout] aday: hwnd=0x20B8E band=Some(18) baslik=""
+```
+
+`FindWindowEx` tabanlı sonda (`spikes/p4-probe/p4-find.ps1`) durumu doğruluyor:
+
+```
+aday #1  hwnd=0x20B8E pid=2584(explorer)
+   band=18  ic pencere=VAR
+   min=True  exstyle=0x082800A8 LAYERED+TRANSPARENT   ← bastirma uygulanmis
+   baslik=''
+aday #2  hwnd=0xB09D0 pid=2584(explorer)  band=7  → dokunulmadi
+```
+
+**Alınacak ders:** kabuğun bant pencerelerini `EnumWindows` ile aramak yöntemsel
+bir hata. Bu projede pencere ararken `FindWindowEx` kullan; `EnumWindows`
+sonuçlarının yokluğu kanıt değil.
 
 ---
 
-## 4. Sonuç — bu makinede bastırılacak bir şey yok
+## 4. Sonuç — pencere var ve bastırma çalışıyor
 
-**Native OSD bu kullanıcının akışında hiç çıkmıyor**, ve sebebi projenin kendi
-varlık gerekçesiyle aynı: Windows'un flyout'u **ses/medya tuşuna basılmasına** tepki
-veriyor, **ses seviyesinin değişmesine** değil. Kullanıcı sesi fareyle değiştiriyor,
-dolayısıyla ortada basılmış bir tuş yok — Windows da kutusunu açmıyor. `CLAUDE.md`
-→ *"Neden bu uygulama var"* bölümünün ses tarafındaki karşılığı tam olarak bu.
+**§ 3'ün ilk üç ölçümünün "bastırılacak pencere yok" sonucu yanlıştı** (§ 3.5).
+Doğrusu:
 
-Sentetik `keybd_event` ile de OSD çıkmadı (§ 3.2); kabuk enjekte edilmiş girdiyi
-eliyor olabilir, ama bu artık **önemsiz** — gerçek akış zaten tuş kullanmıyor.
+- Flyout host'u **var**: `XamlExplorerHostIslandWindow`, boş başlık, sahip
+  `explorer.exe`, band **18**, iç penceresi `DesktopWindowContentBridge` /
+  `DesktopWindowXamlSource`. § 1'deki yöntem bu makinede **birebir geçerli**.
+- Bastırma **çalışıyor**: uygulama açılışta pencereyi buluyor, `WS_EX_LAYERED |
+  WS_EX_TRANSPARENT` ekleyip küçültüyor. Sonda bayrakları doğruluyor.
+- **Bant kontrolü kendini kanıtladı:** aynı sınıftan band 7'deki ikinci bir
+  pencere ve band 16'daki Alt+Tab dokunulmadan geçildi.
 
-**P4 buna göre küçülüyor:** bastırma bir *özellik* değil, bir *emniyet kemeri*.
-Kod, flyout penceresini arar; bulursa bastırır, bulamazsa sessizce vazgeçer — ki bu
-makinede her zaman ikincisi olacak. Yol haritasının çıkış kriteri (*"bastırma
-başarısız olduğunda uygulama çalışmaya devam ediyor"*) zaten tam olarak bunu istiyor.
+Kullanıcı sesi fareyle değiştirdiği için Windows'un kutusunu zaten görmüyordu;
+ama pencere hep oradaydı ve tuş kullanılan her durumda çıkacaktı. P4 böylece
+gerçek bir iş yapıyor — sadece bu kullanıcının fark etmediği bir iş.
+
+### Bilinen kırılganlık — geri alma
+
+`restore()` yalnızca uygulama **düzgün kapanırsa** (`RunEvent::Exit`) çalışıyor.
+Süreç öldürülürse (Ctrl+C, görev yöneticisi, çökme, `tauri dev`'in yeniden
+derlemesi) kabuğun kutusu bastırılmış kalıyor ve explorer yeniden başlayana kadar
+öyle duruyor. Kurtarma: `spikes/p4-probe/p4-restore.ps1`. Kalıcı çözüm P5'in işi
+(tepsi ikonundan düzgün "Çıkış").
 
 ---
 
@@ -165,27 +209,32 @@ başarısız olduğunda uygulama çalışmaya devam ediyor"*) zaten tam olarak b
 4. **Bulamazsa:** tek satır günlük, `Ok(())`. Yeniden deneme yok, kanca yok,
    zamanlayıcı yok — ModernFlyouts'un 3 sn'lik rehook döngüsü bize gereksiz;
    o, bastırmanın *çalışmasına* bağımlı bir uygulama, biz değiliz.
-5. **Doğrulama:** `p4-probe.ps1` bastırma öncesi/sonrası çalıştırılır. Bu makinede
-   beklenen sonuç "hiçbir şey bulunamadı, uygulama normal çalışıyor" — çıkış
-   kriterinin kendisi bu.
+5. **Doğrulama:** `p4-find.ps1` (`p4-probe.ps1` **değil** — § 3.5) bastırma
+   öncesi/sonrası çalıştırılır.
 
-### Durum: kod yazıldı, **derlenmedi**
+### Durum: tamamlandı ✅
 
-`app/src-tauri/src/adapters/native_flyout.rs` yukarıdaki planı uyguluyor ama
-**`adapters/mod.rs`'e bağlanmadı** — yani derlemeye hiç girmiyor. Sebep: Smart App
-Control (§ 6). Engel kalkınca sırayla:
+- `adapters/native_flyout.rs` yazıldı, `adapters/mod.rs`'e bağlandı, `lib.rs`
+  `setup`'ında `suppress()`, `RunEvent::Exit`'te `restore()` çağrılıyor.
+- `cargo test --lib` → **16/16**, `cargo fmt` temiz.
+- `npm run tauri dev` ile çalıştırıldı: pencere bulundu ve bastırıldı, sonda
+  bayrakları doğruladı (§ 3.5), uygulama normal çalışıyor.
+- Alt+Tab ve band 7'deki diğer aday dokunulmadan geçildi.
 
-1. `adapters/mod.rs` → `pub mod native_flyout;`
-2. `cargo test --lib` (derleme + mevcut 16 test)
-3. `lib.rs` `setup`'ında `native_flyout::suppress()`, çıkışta `restore()`
-4. `spikes/p4-probe/p4-probe.ps1` ile öncesi/sonrası karşılaştır
+### Uygulamada plandan sapan iki nokta
 
-Bu makinede beklenen sonuç `suppress() == false` ve uygulamanın normal çalışması —
-çıkış kriterinin kendisi bu.
+1. **`GetWindowBand` `#[link]` ile bildirilemiyor.** `user32.lib`'de import stub'ı
+   yok; bağlayıcı `LNK2019: __imp_GetWindowBand` veriyor. Çalışma anında
+   `GetModuleHandleW("user32.dll")` + `GetProcAddress("GetWindowBand")` ile
+   çözülüyor. Çözülemezse `None` döner ve **hiçbir pencereye dokunulmaz**.
+2. **`SW_MINIMIZE`, `SetWindowPos(-99999)`'u eziyor.** Bastırılmış pencerenin
+   rect'i `-32768,-32768` (klasik minimize konumu) oluyor, `-99999` değil. İşlev
+   aynı; ama doğrularken **konuma bakma**, ex-style bayraklarına ve `IsIconic`'e
+   bak — `p4-find.ps1` bu yüzden öyle kontrol ediyor.
 
 ---
 
-## 6. Neden derlenemedi — SAC denemelerinin dökümü
+## 6. SAC engeli — denemelerin dökümü *(tarihsel)*
 
 `CLAUDE.md` → SAC bölümü durumu anlatıyor; bu oturumda denenenler ve sonuçları:
 
@@ -198,9 +247,12 @@ Bu makinede beklenen sonuç `suppress() == false` ve uygulamanın normal çalı�
 | `RUSTC=<beta> <stable cargo> test --lib`, üç farklı `build-override` bayrak kümesiyle | **Üçü de başarısız**, ama her seferinde *farklı* bir build script'te (`getrandom`, `quote`, yine `getrandom` — farklı hash). ~20-40 crate derlendikten sonra düşüyor. |
 
 **Sonuç:** bayrak değiştirmek build script'lerin hash'ini değiştiriyor ama hepsini
-birden geçirmiyor; her deneme yeni bir kura. Yakınsamıyor. Geriye iki gerçek yol
-kalıyor ve **ikisi de kullanıcı kararı**: SAC'ı kapatmak (*geri alınamaz*) veya
-derlemeyi GitHub Actions'ta yapmak (depo zaten public).
+birden geçirmiyor; her deneme yeni bir kura, yakınsamıyor.
+
+**Çözüm (2026-08-30): kullanıcı SAC'ı kapattı.** `VerifiedAndReputablePolicyState`
+1 → 0. Rust derlemesi tamamen açıldı; P4 kodu bundan sonra derlendi ve doğrulandı.
+Ayar **geri alınamaz** (tekrar açmak Windows'u yeniden kurmayı gerektirir).
+`CLAUDE.md` → "Smart App Control" bölümü güncel durumu taşıyor.
 
 ---
 

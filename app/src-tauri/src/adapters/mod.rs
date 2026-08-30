@@ -5,6 +5,7 @@
 //! kendi COM apartment'ında çalışır; dışarıya yalnızca `core::DomainEvent` verir.
 
 pub mod audio;
+pub mod native_flyout;
 pub mod smtc;
 pub mod webview;
 pub mod window;
