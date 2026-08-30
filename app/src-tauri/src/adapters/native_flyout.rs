@@ -86,7 +86,12 @@ pub fn suppress() -> bool {
     };
 
     unsafe {
-        let ex_style = GetWindowLongPtrW(hwnd(host), GWL_EXSTYLE);
+        // Bastirma bitlerini KAYDETME: surec oldurulup uygulama yeniden baslarsa
+        // pencere hala bastirilmis olur, bu okuma "bastirilmis stili" ozgun sanip
+        // restore()'da geri yazardi ve kabugun kutusu bir daha gorunmezdi.
+        // Ozgun stilde bu iki bitin bulunmadigi olculdu (P5, docs/P5-SONUC.md).
+        let ex_style = GetWindowLongPtrW(hwnd(host), GWL_EXSTYLE)
+            & !(WS_EX_LAYERED.0 as isize | WS_EX_TRANSPARENT.0 as isize);
         // Tıklama geçirgen + katmanlı: ekran dışında olsa bile masaüstünün
         // hit-test bölgesini sahiplenmesin.
         SetWindowLongPtrW(

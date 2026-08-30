@@ -189,6 +189,25 @@ derlemesi) kabuğun kutusu bastırılmış kalıyor ve explorer yeniden başlaya
 öyle duruyor. Kurtarma: `spikes/p4-probe/p4-restore.ps1`. Kalıcı çözüm P5'in işi
 (tepsi ikonundan düzgün "Çıkış").
 
+**P5'te kapatıldı — ve bu yolda ikinci bir hata bulundu.** Düzgün çıkış tepsi
+menüsüyle geldi (`adapters/tray.rs` → `app.exit(0)` → `RunEvent::Exit`). Ama
+`suppress()` **o anki** ex-style'ı kaydediyordu: süreç öldürülüp uygulama yeniden
+başladığında kabuğun penceresi hâlâ bastırılmış olduğu için kaydedilen stil
+`WS_EX_LAYERED|WS_EX_TRANSPARENT` **içeriyordu**, ve sonraki düzgün çıkışta
+`restore()` bastırılmış stili geri yazıyordu — yani kill-9'dan sonraki ilk düzgün
+çıkış pencereyi kurtarmıyordu.
+
+Artık bu iki bit kaydetmeden önce maskeleniyor. Özgün stilde bulunmadıkları
+ölçülerek doğrulandı (bastırılmamış sistemde, `FindWindowEx` ile — § 3.5):
+
+```
+hwnd=526796   proc=explorer  exstyle=0x08200088  LAYERED=False TRANSPARENT=False
+hwnd=1312314  proc=explorer  exstyle=0x00200088  LAYERED=False TRANSPARENT=False
+```
+
+`0x08200088` = `WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOREDIRECTIONBITMAP |
+WS_EX_NOACTIVATE`. Kurtarma betiği son çare olarak yerinde duruyor.
+
 ---
 
 ## 5. Uygulama planı
