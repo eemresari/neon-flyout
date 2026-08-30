@@ -73,7 +73,11 @@ Mimari kuralı bozulmuyor: `unsafe`/COM yalnızca `adapters/` altında
 ## 3. `config.json`
 
 **Konum:** `%APPDATA%\neon-flyout\config.json`
-(Tauri `app.path().app_config_dir()`).
+
+Yol `%APPDATA%` ortam değişkeninden **doğrudan** kuruluyor. Tauri'nin
+`app.path().app_config_dir()` fonksiyonu bundle identifier'ı kullanır ve
+`%APPDATA%\dev.neonflyout.app` verir — kullanıcının elle düzenleyeceği bir dosya
+için okunaksız bir yol, o yüzden kullanılmıyor.
 
 ```json
 {
