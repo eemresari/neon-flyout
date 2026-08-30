@@ -4,23 +4,60 @@
 //! Flip yolunu kapatıyor, opaklığı sıfırlayıp pencereyi açık bırakmak bedeli
 //! sürdürüyor (`CLAUDE.md` → "Neden `SW_HIDE`, alpha 0 değil").
 
+use std::sync::atomic::{AtomicU8, Ordering};
+
 use windows::core::PWSTR;
-use windows::Win32::Foundation::{CloseHandle, ERROR_SUCCESS, HANDLE, HWND, MAX_PATH, RECT};
+use windows::Win32::Foundation::{CloseHandle, ERROR_SUCCESS, HANDLE, HWND, MAX_PATH, POINT, RECT};
 use windows::Win32::Graphics::Gdi::{
-    GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTOPRIMARY,
+    GetMonitorInfoW, MonitorFromPoint, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+    MONITOR_DEFAULTTOPRIMARY,
 };
 use windows::Win32::Storage::Packaging::Appx::GetApplicationUserModelId;
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId,
+    GetCursorPos, GetForegroundWindow, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId,
     SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE,
     SWP_NOSIZE, SW_HIDE, SW_SHOWNOACTIVATE, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
 
-/// Ekran kenarına bırakılan boşluk (fiziksel piksel). Köşe/monitör seçimi P3.
+use crate::core::config::{Corner, MonitorPick};
+use crate::core::place::{position, WorkArea};
+
+/// Ekran kenarına bırakılan boşluk (fiziksel piksel). Köşe hesabı
+/// `core/place.rs`'te, testli.
 const MARGIN: i32 = 16;
+
+/// Köşe ve monitör tercihi. Atomikte tutuluyor: tepsi menüsü yazar, `show()`
+/// okur. İki değer de tek baytlık ve birbirinden bağımsız, kilit gerekmiyor.
+static CORNER: AtomicU8 = AtomicU8::new(0);
+static MONITOR: AtomicU8 = AtomicU8::new(0);
+
+fn corner_of(v: u8) -> Corner {
+    match v {
+        1 => Corner::TopLeft,
+        2 => Corner::BottomRight,
+        3 => Corner::BottomLeft,
+        _ => Corner::TopRight,
+    }
+}
+
+fn corner_num(c: Corner) -> u8 {
+    match c {
+        Corner::TopRight => 0,
+        Corner::TopLeft => 1,
+        Corner::BottomRight => 2,
+        Corner::BottomLeft => 3,
+    }
+}
+
+/// Tepsi menüsünden çağrılır. Etkisi **bir sonraki gösterimde** görünür —
+/// `show()` her seferinde yeniden konumlandırıyor, ekrandaki kutu zıplamasın.
+pub fn set_placement(corner: Corner, monitor: MonitorPick) {
+    CORNER.store(corner_num(corner), Ordering::Relaxed);
+    MONITOR.store(matches!(monitor, MonitorPick::Cursor) as u8, Ordering::Relaxed);
+}
 
 fn hwnd(raw: isize) -> HWND {
     HWND(raw as *mut std::ffi::c_void)
@@ -40,17 +77,28 @@ pub fn apply_styles(raw: isize) {
     }
 }
 
-/// Pencereyi sağ üst köşeye taşır. Ölçüler fiziksel pikselde okunuyor, bu yüzden
+/// Pencereyi seçili köşeye taşır. Ölçüler fiziksel pikselde okunuyor, bu yüzden
 /// DPI ölçeklemesi ayrıca hesaplanmıyor.
-pub fn place_top_right(raw: isize) {
+pub fn place(raw: isize) {
     unsafe {
         let mut r = RECT::default();
         if GetWindowRect(hwnd(raw), &mut r).is_err() {
             return;
         }
-        let w = r.right - r.left;
+        let (w, h) = (r.right - r.left, r.bottom - r.top);
 
-        let mon = MonitorFromWindow(hwnd(raw), MONITOR_DEFAULTTOPRIMARY);
+        // `cursor` seçiliyse imlecin bulunduğu ekran; değilse birincil.
+        let mon = if MONITOR.load(Ordering::Relaxed) == 1 {
+            let mut p = POINT::default();
+            if GetCursorPos(&mut p).is_ok() {
+                MonitorFromPoint(p, MONITOR_DEFAULTTONEAREST)
+            } else {
+                MonitorFromWindow(hwnd(raw), MONITOR_DEFAULTTOPRIMARY)
+            }
+        } else {
+            MonitorFromWindow(hwnd(raw), MONITOR_DEFAULTTOPRIMARY)
+        };
+
         let mut mi = MONITORINFO {
             cbSize: std::mem::size_of::<MONITORINFO>() as u32,
             ..Default::default()
@@ -58,13 +106,20 @@ pub fn place_top_right(raw: isize) {
         if !GetMonitorInfoW(mon, &mut mi).as_bool() {
             return;
         }
-        let work = mi.rcWork;
+        let work = WorkArea {
+            left: mi.rcWork.left,
+            top: mi.rcWork.top,
+            right: mi.rcWork.right,
+            bottom: mi.rcWork.bottom,
+        };
+
+        let (x, y) = position(work, w, h, corner_of(CORNER.load(Ordering::Relaxed)), MARGIN);
 
         let _ = SetWindowPos(
             hwnd(raw),
             Some(HWND_TOPMOST),
-            work.right - w - MARGIN,
-            work.top + MARGIN,
+            x,
+            y,
             0,
             0,
             SWP_NOSIZE | SWP_NOACTIVATE,
@@ -75,7 +130,7 @@ pub fn place_top_right(raw: isize) {
 /// Göster. Her göstermede z-order tazelenir; `SWP_NOACTIVATE` ve
 /// `SW_SHOWNOACTIVATE` odak çalmayı engeller.
 pub fn show(raw: isize) {
-    place_top_right(raw);
+    place(raw);
     unsafe {
         let _ = ShowWindow(hwnd(raw), SW_SHOWNOACTIVATE);
     }

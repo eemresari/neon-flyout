@@ -41,7 +41,7 @@ pub fn run() {
             // ve gizleme yalnızca ShowWindow (gecikme bütçesi bunu gerektiriyor).
             let hwnd = win.hwnd()?.0 as isize;
             adapters::window::apply_styles(hwnd);
-            adapters::window::place_top_right(hwnd);
+            adapters::window::place(hwnd);
             // Gizliyken WebView2'nin render dongusunu durdurur; `SW_HIDE` tek
             // basina durdurmuyor (`docs/P3-SONUC.md`).
             adapters::webview::capture(&win);

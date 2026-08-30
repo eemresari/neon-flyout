@@ -11,6 +11,7 @@ pub mod config;
 pub mod engine;
 pub mod event;
 pub mod model;
+pub mod place;
 pub mod rules;
 pub mod visibility;
 
